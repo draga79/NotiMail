@@ -42,7 +42,7 @@ Mobile devices often use IMAP IDLE, maintaining a persistent connection to ensur
 Contributions, feedback, and stars ⭐ are always welcome.
 
 
-**NotiMail Installation Walkthrough**
+## NotiMail Installation Walkthrough
 
 ----------
 
