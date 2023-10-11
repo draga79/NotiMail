@@ -4,11 +4,16 @@ Version: 0.8
 Author: Stefano Marinelli
 License: BSD 3-Clause License
 
-NotiMail is a script designed to monitor an email inbox using the IMAP IDLE feature,
-and send notifications via HTTP POST requests when a new email arrives.
+NotiMail is a script designed to monitor an email inbox using the IMAP IDLE feature 
+and send notifications via HTTP POST requests when a new email arrives. This version includes 
+additional features to store processed email UIDs in a SQLite3 database and ensure they are not 
+processed repeatedly.
 
-The script uses IMAP to connect to an email server, enters IDLE mode to wait for new emails,
-and sends a notification containing the sender and subject of the new email upon receipt.
+The script uses:
+- IMAP to connect to an email server
+- IDLE mode to wait for new emails
+- Sends a notification containing the sender and subject of the new email upon receipt
+- Maintains a SQLite database to keep track of processed emails
 
 Python Dependencies:
 - imaplib: For handling IMAP connections.
@@ -16,9 +21,13 @@ Python Dependencies:
 - requests: For sending HTTP POST notifications.
 - configparser: For reading the configuration from a file.
 - time, socket: For handling timeouts and delays.
+- sqlite3: For database operations.
+- datetime: For date and time operations.
+- signal, sys: For handling script shutdown and signals.
+- BytesParser from email.parser: For parsing raw email data.
 
 Configuration:
-The script reads configuration data from a file named config.ini. Ensure it is properly
+The script reads configuration data from a file named config.ini. Ensure it is properly 
 configured before running the script.
 
 BSD 3-Clause License:
@@ -50,21 +59,57 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 OF SUCH DAMAGE.
 """
 
-
 import imaplib
 import email
 import requests
 import configparser
 import time
 import socket
+import sqlite3
+import datetime
+import signal
+import sys
 from email import policy
 from email.parser import BytesParser
+
+class DatabaseHandler:
+    def __init__(self, db_name="processed_emails.db"):
+        self.connection = sqlite3.connect(db_name)
+        self.cursor = self.connection.cursor()
+        self.create_table()
+
+    def create_table(self):
+        self.cursor.execute('''
+        CREATE TABLE IF NOT EXISTS processed_emails (
+            uid TEXT PRIMARY KEY,
+            notified INTEGER,
+            processed_date TEXT
+        )''')
+        self.connection.commit()
+
+    def add_email(self, uid, notified):
+        date_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.cursor.execute("INSERT INTO processed_emails (uid, notified, processed_date) VALUES (?, ?, ?)",
+                            (uid, notified, date_str))
+        self.connection.commit()
+
+    def is_email_notified(self, uid):
+        self.cursor.execute("SELECT * FROM processed_emails WHERE uid = ? AND notified = 1", (uid,))
+        return bool(self.cursor.fetchone())
+
+    def delete_old_emails(self, days=7):
+        date_limit_str = (datetime.datetime.now() - datetime.timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
+        self.cursor.execute("DELETE FROM processed_emails WHERE processed_date < ?", (date_limit_str,))
+        self.connection.commit()
+
+    def close(self):
+        self.connection.close()
 
 
 class EmailProcessor:
     def __init__(self, mail):
         self.mail = mail
-        self.processed_emails = set()
+        self.db_handler = DatabaseHandler()
 
     def fetch_unseen_emails(self):
         status, messages = self.mail.uid('search', None, "UNSEEN")
@@ -76,8 +121,9 @@ class EmailProcessor:
     def process(self):
         print("Fetching the latest email...")
         for message in self.fetch_unseen_emails():
-            if message in self.processed_emails:
-                print(f"Email UID {message} already processed, skipping...")
+            uid = message.decode('utf-8')
+            if self.db_handler.is_email_notified(uid):
+                print(f"Email UID {uid} already processed and notified, skipping...")
                 continue
 
             _, msg = self.mail.uid('fetch', message, '(BODY.PEEK[])')
@@ -89,18 +135,24 @@ class EmailProcessor:
                     print('Body:', email_message.get_payload())
                     print('------')
                     Notifier.send_notification(email_message.get('From'), email_message.get('Subject'))
-                    self.processed_emails.add(message)
+                    # Add UID to database to ensure it is not processed in future runs
+                    self.db_handler.add_email(uid, 1)
 
+        # Delete entries older than 7 days
+        self.db_handler.delete_old_emails()
 
 class Notifier:
     @staticmethod
     def send_notification(mail_from, mail_subject):
         try:
             ntfy_url = config['NTFY']['NtfyURL']
+            # Sanitize mail_subject and mail_from to ensure they only contain characters that can be encoded in 'latin-1'
+            sanitized_subject = mail_subject.encode('latin-1', errors='replace').decode('latin-1')
+            sanitized_from = mail_from.encode('latin-1', errors='replace').decode('latin-1')
             response = requests.post(
                 ntfy_url,
-                data=mail_from.encode(encoding='utf-8'),
-                headers={"Title": mail_subject}
+                data=sanitized_from.encode(encoding='utf-8'),
+                headers={"Title": sanitized_subject}
             )
             if response.status_code == 200:
                 print("Notification sent successfully!")
@@ -109,7 +161,6 @@ class Notifier:
                 print("Failed to send notification. Status Code:", response.status_code)
         except requests.RequestException as e:
             print(f"An error occurred: {str(e)}")
-
 
 class IMAPHandler:
     def __init__(self, host, email_user, email_pass):
@@ -172,9 +223,25 @@ host = config['EMAIL']['Host']
 # Set a global timeout for all socket operations
 socket.setdefaulttimeout(600)  # e.g., 600 seconds or 10 minutes
 
+def shutdown_handler(signum, frame):
+    print("Shutdown signal received. Cleaning up...")
+    try:
+        handler.mail.logout()
+    except:
+        pass
+    processor.db_handler.close()
+    print("Cleanup complete. Exiting.")
+    sys.exit(0)
+
+# Register the signal handlers
+signal.signal(signal.SIGTERM, shutdown_handler)
+signal.signal(signal.SIGINT, shutdown_handler)
+
 print("Script started. Press Ctrl+C to stop it anytime.")
+handler = IMAPHandler(host, email_user, email_pass)
+processor = EmailProcessor(None)  # Creating an instance for graceful shutdown handling
+
 try:
-    handler = IMAPHandler(host, email_user, email_pass)
     while True:
         try:
             handler.connect()
@@ -187,12 +254,11 @@ try:
         except Exception as e:
             print(f"An unexpected error occurred: {str(e)}")
             Notifier.send_notification("Script Error", f"An unexpected error occurred: {str(e)}")
-except KeyboardInterrupt:
-    print("User pressed Ctrl+C, exiting...")
 finally:
     print("Logging out and closing the connection...")
     try:
         handler.mail.logout()
     except:
         pass
+    processor.db_handler.close()
 

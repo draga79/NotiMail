@@ -11,6 +11,8 @@ Mobile devices often use IMAP IDLE, maintaining a persistent connection to ensur
 -   **Processes and Notifies**: Once a new email is detected, NotiMail swiftly processes its details.
     
 -   **Leverages 'ntfy' for Alerts**: Rather than having your device always on alert, NotiMail sends notifications via the `ntfy` service, ensuring you're promptly informed.
+
+-   **Database Integration**: NotiMail uses an SQLite3 database to store and manage processed email UIDs, preventing repeated processing.
     
 -   **Built for Resilience**: With connectivity hiccups in mind, NotiMail ensures you're always the first to know.
     
@@ -97,7 +99,7 @@ Activate the virtual environment:
 
 **4. Install the Required Libraries:**
 
-Install the necessary Python libraries using `pip`.
+Install the necessary Python libraries using `pip`, for example:
 
 bash
 
