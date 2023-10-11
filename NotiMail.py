@@ -1,7 +1,7 @@
 """
 NotiMail
 Version: 0.8
-Author: Stefano Marinelli
+Author: Stefano Marinelli <stefano@dragas.it>
 License: BSD 3-Clause License
 
 NotiMail is a script designed to monitor an email inbox using the IMAP IDLE feature 
