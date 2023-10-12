@@ -144,26 +144,29 @@ class EmailProcessor:
 class Notifier:
     @staticmethod
     def send_notification(mail_from, mail_subject):
-        try:
-            ntfy_url = config['NTFY']['NtfyURL']
-            # Check if mail_subject and mail_from are None and replace them with default strings
-            mail_subject = mail_subject if mail_subject is not None else "No Subject"
-            mail_from = mail_from if mail_from is not None else "Unknown Sender"
-            # Sanitize mail_subject and mail_from to ensure they only contain characters that can be encoded in 'latin-1'
-            sanitized_subject = mail_subject.encode('latin-1', errors='replace').decode('latin-1')
-            sanitized_from = mail_from.encode('latin-1', errors='replace').decode('latin-1')
-            response = requests.post(
-                ntfy_url,
-                data=sanitized_from.encode(encoding='utf-8'),
-                headers={"Title": sanitized_subject}
-            )
-            if response.status_code == 200:
-                print("Notification sent successfully!")
+        # Check if mail_subject and mail_from are None and replace them with default strings
+        mail_subject = mail_subject if mail_subject is not None else "No Subject"
+        mail_from = mail_from if mail_from is not None else "Unknown Sender"
+        # Sanitize mail_subject and mail_from to ensure they only contain characters that can be encoded in 'latin-1'
+        sanitized_subject = mail_subject.encode('latin-1', errors='replace').decode('latin-1')
+        sanitized_from = mail_from.encode('latin-1', errors='replace').decode('latin-1')
+
+        # Iterate over all notification URLs in the configuration and send notifications
+        for key, ntfy_url in config['NTFY'].items():
+            try:
+                response = requests.post(
+                    ntfy_url,
+                    data=sanitized_from.encode(encoding='utf-8'),
+                    headers={"Title": sanitized_subject}
+                )
+                if response.status_code == 200:
+                    print(f"Notification sent successfully to {ntfy_url}!")
+                else:
+                    print(f"Failed to send notification to {ntfy_url}. Status Code:", response.status_code)
+            except requests.RequestException as e:
+                print(f"An error occurred while sending notification to {ntfy_url}: {str(e)}")
+            finally:
                 time.sleep(5)  # Ensure a delay between notifications
-            else:
-                print("Failed to send notification. Status Code:", response.status_code)
-        except requests.RequestException as e:
-            print(f"An error occurred: {str(e)}")
 
 
 class IMAPHandler:
