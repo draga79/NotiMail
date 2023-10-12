@@ -146,6 +146,9 @@ class Notifier:
     def send_notification(mail_from, mail_subject):
         try:
             ntfy_url = config['NTFY']['NtfyURL']
+            # Check if mail_subject and mail_from are None and replace them with default strings
+            mail_subject = mail_subject if mail_subject is not None else "No Subject"
+            mail_from = mail_from if mail_from is not None else "Unknown Sender"
             # Sanitize mail_subject and mail_from to ensure they only contain characters that can be encoded in 'latin-1'
             sanitized_subject = mail_subject.encode('latin-1', errors='replace').decode('latin-1')
             sanitized_from = mail_from.encode('latin-1', errors='replace').decode('latin-1')
@@ -161,6 +164,7 @@ class Notifier:
                 print("Failed to send notification. Status Code:", response.status_code)
         except requests.RequestException as e:
             print(f"An error occurred: {str(e)}")
+
 
 class IMAPHandler:
     def __init__(self, host, email_user, email_pass):
