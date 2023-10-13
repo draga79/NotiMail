@@ -1,5 +1,7 @@
 # NotiMail 📧
 
+**Development is ongoing, and the project is in the early alpha stage - things may break!**
+
 Stay connected without the constant drain on your battery. Introducing **NotiMail** - the future of server-side email notifications using the renowned `ntfy` service!
 
 Mobile devices often use IMAP IDLE, maintaining a persistent connection to ensure real-time email notifications. Such continuous connections rapidly consume battery power. The modern era demanded a smarter, more energy-efficient solution. Meet NotiMail.
