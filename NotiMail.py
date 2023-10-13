@@ -289,7 +289,7 @@ class IMAPHandler:
             raise ConnectionAbortedError("Connection lost. Trying to reconnect...")
         except socket.timeout:
             print("Socket timeout during IDLE, re-establishing connection...")
-            loggin.info(f"Socket timeout during IDLE, re-establishing connection...")
+            logging.info(f"Socket timeout during IDLE, re-establishing connection...")
             raise ConnectionAbortedError("Socket timeout. Trying to reconnect...")
         except Exception as e:
             print(f"An error occurred: {str(e)}")
