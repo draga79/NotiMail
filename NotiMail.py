@@ -198,6 +198,37 @@ class PushoverNotificationProvider(NotificationProvider):
         except requests.RequestException as e:
             print(f"An error occurred while sending notification via Pushover: {str(e)}")
 
+class GotifyNotificationProvider(NotificationProvider):
+    def __init__(self, gotify_url, gotify_token):
+        self.gotify_url = gotify_url
+        self.gotify_token = gotify_token
+    
+    def send_notification(self, mail_from, mail_subject):
+        mail_subject = mail_subject if mail_subject is not None else "No Subject"
+        mail_from = mail_from if mail_from is not None else "Unknown Sender"
+        
+        message = f"From: {mail_from}\nSubject: {mail_subject}"
+        
+        # Include the token in the URL
+        url_with_token = f"{self.gotify_url}?token={self.gotify_token}"
+        
+        payload = {
+            "title": mail_subject,
+            "message": message,
+            "priority": 5  # Adjust priority as needed
+        }
+        
+        try:
+            response = requests.post(url_with_token, json=payload)
+            if response.status_code == 200:
+                print("Notification sent successfully via Gotify!")
+            else:
+                print(f"Failed to send notification via Gotify. Status Code: {response.status_code}")
+                print(f"Response: {response.text}")  # Print the response body
+        except requests.RequestException as e:
+            print(f"An error occurred while sending notification via Gotify: {str(e)}")
+
+
 class Notifier:
     def __init__(self, providers):
         self.providers = providers
@@ -276,6 +307,11 @@ if 'PUSHOVER' in config:
     api_token = config['PUSHOVER']['ApiToken']
     user_key = config['PUSHOVER']['UserKey']
     providers.append(PushoverNotificationProvider(api_token, user_key))
+
+if 'GOTIFY' in config:
+    gotify_url = config['GOTIFY']['Url']
+    gotify_token = config['GOTIFY']['Token']
+    providers.append(GotifyNotificationProvider(gotify_url, gotify_token))
 
 # Initialize Notifier with providers
 notifier = Notifier(providers)

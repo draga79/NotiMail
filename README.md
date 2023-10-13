@@ -18,7 +18,7 @@ Mobile devices often use IMAP IDLE, maintaining a persistent connection to ensur
     
 -   **Built for Resilience**: With connectivity hiccups in mind, NotiMail ensures you're always the first to know.
 
--   **Multiple And Different Push providers supported**: You can use one or more of the supported Push providers, which currently include ntfy and Pushover.
+-   **Multiple And Different Push providers supported**: You can use one or more of the supported Push providers, which currently include ntfy, Gotify and Pushover.
     
 
 ## Benefits 🚀
