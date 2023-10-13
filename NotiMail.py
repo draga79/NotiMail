@@ -134,25 +134,28 @@ class EmailProcessor:
                     print('Subject:', email_message.get('Subject'))
                     print('Body:', email_message.get_payload())
                     print('------')
-                    Notifier.send_notification(email_message.get('From'), email_message.get('Subject'))
+                    notifier.send_notification(email_message.get('From'), email_message.get('Subject'))
                     # Add UID to database to ensure it is not processed in future runs
                     self.db_handler.add_email(uid, 1)
 
         # Delete entries older than 7 days
         self.db_handler.delete_old_emails()
 
-class Notifier:
-    @staticmethod
-    def send_notification(mail_from, mail_subject):
-        # Check if mail_subject and mail_from are None and replace them with default strings
+class NotificationProvider:
+    def send_notification(self, mail_from, mail_subject):
+        raise NotImplementedError("Subclasses must implement this method")
+
+class NTFYNotificationProvider(NotificationProvider):
+    def __init__(self, ntfy_urls):
+        self.ntfy_urls = ntfy_urls  # Expecting a list of URLs
+    
+    def send_notification(self, mail_from, mail_subject):
         mail_subject = mail_subject if mail_subject is not None else "No Subject"
         mail_from = mail_from if mail_from is not None else "Unknown Sender"
-        # Sanitize mail_subject and mail_from to ensure they only contain characters that can be encoded in 'latin-1'
         sanitized_subject = mail_subject.encode('latin-1', errors='replace').decode('latin-1')
         sanitized_from = mail_from.encode('latin-1', errors='replace').decode('latin-1')
 
-        # Iterate over all notification URLs in the configuration and send notifications
-        for key, ntfy_url in config['NTFY'].items():
+        for ntfy_url in self.ntfy_urls:
             try:
                 response = requests.post(
                     ntfy_url,
@@ -169,6 +172,15 @@ class Notifier:
                 time.sleep(5)  # Ensure a delay between notifications
 
 
+class Notifier:
+    def __init__(self, providers):
+        self.providers = providers
+
+    def send_notification(self, mail_from, mail_subject):
+        for provider in self.providers:
+            provider.send_notification(mail_from, mail_subject)
+
+
 class IMAPHandler:
     def __init__(self, host, email_user, email_pass):
         self.host = host
@@ -183,7 +195,7 @@ class IMAPHandler:
             self.mail.select('inbox')
         except imaplib.IMAP4.error as e:
             print(f"Cannot connect: {str(e)}")
-            Notifier.send_notification("Script Error", f"Cannot connect: {str(e)}")
+            notifier.send_notification("Script Error", f"Cannot connect: {str(e)}")
             raise
 
     def idle(self):
@@ -202,14 +214,14 @@ class IMAPHandler:
             self.mail.readline()
         except imaplib.IMAP4.abort as e:
             print(f"Connection closed by server: {str(e)}")
-            Notifier.send_notification("Script Error", f"Connection closed by server: {str(e)}")
+            notifier.send_notification("Script Error", f"Connection closed by server: {str(e)}")
             raise ConnectionAbortedError("Connection lost. Trying to reconnect...")
         except socket.timeout:
             print("Socket timeout during IDLE, re-establishing connection...")
             raise ConnectionAbortedError("Socket timeout. Trying to reconnect...")
         except Exception as e:
             print(f"An error occurred: {str(e)}")
-            Notifier.send_notification("Script Error", f"An error occurred: {str(e)}")
+            notifier.send_notification("Script Error", f"An error occurred: {str(e)}")
             raise
         finally:
             print("IDLE mode stopped.")
@@ -226,6 +238,17 @@ config.read('config.ini')
 email_user = config['EMAIL']['EmailUser']
 email_pass = config['EMAIL']['EmailPass']
 host = config['EMAIL']['Host']
+
+# Example: Creating notification providers based on configuration
+providers = []
+
+if 'NTFY' in config:
+    ntfy_urls = [config['NTFY'][url_key] for url_key in config['NTFY']]
+    providers.append(NTFYNotificationProvider(ntfy_urls))
+
+# Initialize Notifier with providers
+notifier = Notifier(providers)
+
 
 # Set a global timeout for all socket operations
 socket.setdefaulttimeout(600)  # e.g., 600 seconds or 10 minutes
@@ -260,7 +283,7 @@ try:
             time.sleep(30)  # wait for 30 seconds before trying to reconnect
         except Exception as e:
             print(f"An unexpected error occurred: {str(e)}")
-            Notifier.send_notification("Script Error", f"An unexpected error occurred: {str(e)}")
+            notifier.send_notification("Script Error", f"An unexpected error occurred: {str(e)}")
 finally:
     print("Logging out and closing the connection...")
     try:
