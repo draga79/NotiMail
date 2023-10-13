@@ -1,6 +1,6 @@
 """
 NotiMail
-Version: 0.8
+Version: 0.8 - Alpha
 Author: Stefano Marinelli <stefano@dragas.it>
 License: BSD 3-Clause License
 
@@ -171,6 +171,32 @@ class NTFYNotificationProvider(NotificationProvider):
             finally:
                 time.sleep(5)  # Ensure a delay between notifications
 
+class PushoverNotificationProvider(NotificationProvider):
+    def __init__(self, api_token, user_key):
+        self.api_token = api_token
+        self.user_key = user_key
+        self.pushover_url = "https://api.pushover.net/1/messages.json"
+    
+    def send_notification(self, mail_from, mail_subject):
+        mail_subject = mail_subject if mail_subject is not None else "No Subject"
+        mail_from = mail_from if mail_from is not None else "Unknown Sender"
+
+        message = f"From: {mail_from}\nSubject: {mail_subject}"
+
+        data = {
+            "token": self.api_token,
+            "user": self.user_key,
+            "message": message
+        }
+
+        try:
+            response = requests.post(self.pushover_url, data=data)
+            if response.status_code == 200:
+                print("Notification sent successfully via Pushover!")
+            else:
+                print(f"Failed to send notification via Pushover. Status Code:", response.status_code)
+        except requests.RequestException as e:
+            print(f"An error occurred while sending notification via Pushover: {str(e)}")
 
 class Notifier:
     def __init__(self, providers):
@@ -245,6 +271,11 @@ providers = []
 if 'NTFY' in config:
     ntfy_urls = [config['NTFY'][url_key] for url_key in config['NTFY']]
     providers.append(NTFYNotificationProvider(ntfy_urls))
+
+if 'PUSHOVER' in config:
+    api_token = config['PUSHOVER']['ApiToken']
+    user_key = config['PUSHOVER']['UserKey']
+    providers.append(PushoverNotificationProvider(api_token, user_key))
 
 # Initialize Notifier with providers
 notifier = Notifier(providers)

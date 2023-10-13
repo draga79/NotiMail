@@ -2,7 +2,7 @@
 
 **Development is ongoing, and the project is in the early alpha stage - things may break!**
 
-Stay connected without the constant drain on your battery. Introducing **NotiMail** - the future of server-side email notifications using the renowned `ntfy` service!
+Stay connected without the constant drain on your battery. Introducing **NotiMail** - the future of server-side email notifications supporting multiple push providers!
 
 Mobile devices often use IMAP IDLE, maintaining a persistent connection to ensure real-time email notifications. Such continuous connections rapidly consume battery power. The modern era demanded a smarter, more energy-efficient solution. Meet NotiMail.
 
@@ -12,22 +12,24 @@ Mobile devices often use IMAP IDLE, maintaining a persistent connection to ensur
     
 -   **Processes and Notifies**: Once a new email is detected, NotiMail swiftly processes its details.
     
--   **Leverages 'ntfy' for Alerts**: Rather than having your device always on alert, NotiMail sends notifications via the `ntfy` service, ensuring you're promptly informed.
+-   **Leverages Multiple Push Providers for Alerts**: Rather than having your device always on alert, NotiMail sends notifications via multiple push providers, ensuring you're promptly informed.
 
 -   **Database Integration**: NotiMail uses an SQLite3 database to store and manage processed email UIDs, preventing repeated processing.
     
 -   **Built for Resilience**: With connectivity hiccups in mind, NotiMail ensures you're always the first to know.
+
+-   **Multiple And Different Push providers supported**: You can use one or more of the supported Push providers, which currently include ntfy and Pushover.
     
 
 ## Benefits 🚀
 
 -   **Extended Battery Life**: Experience a noticeable improvement in your device's battery lifespan.
     
--   **Swift Notifications**: With the `ntfy` service, NotiMail provides real-time notifications without delay.
+-   **Swift Notifications**: Using one of the supported push providers, NotiMail provides real-time notifications without delay.
     
 -   **Reduced Data Consumption**: With notifications being the primary data exchange, you can save on unnecessary data usage.
     
--   **Always in the Loop**: Whether it's a new email or a server glitch, NotiMail and `ntfy` guarantee you're always informed.
+-   **Always in the Loop**: Whether it's a new email or a server glitch, NotiMail and push notifications guarantee you're always informed.
     
 
 ## Implementation Details 🔧
@@ -109,7 +111,7 @@ bash
 
 **5. Configure NotiMail:**
 
-Open the `config.ini` file in a text editor. Update the `[EMAIL]` section with your email credentials and host, and the `[NTFY]` section with the appropriate `NtfyURL`. For more information about ntfy and its configuration, please read the [official website](https://docs.ntfy.sh/)
+Open the `config.ini` file in a text editor. Update the `[EMAIL]` section with your email credentials and host, and the configuration of one (or more) of the supported push providers.
 
 **6. Run NotiMail:**
 
