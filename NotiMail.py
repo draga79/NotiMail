@@ -69,8 +69,14 @@ import sqlite3
 import datetime
 import signal
 import sys
+import logging
 from email import policy
 from email.parser import BytesParser
+
+# Setup logging
+logging.basicConfig(filename='notimail.log',
+                    level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
 
 class DatabaseHandler:
     def __init__(self, db_name="processed_emails.db"):
@@ -119,23 +125,21 @@ class EmailProcessor:
         return BytesParser(policy=policy.default).parsebytes(raw_email)
 
     def process(self):
-        print("Fetching the latest email...")
+        logging.info("Fetching the latest email...")
         for message in self.fetch_unseen_emails():
             uid = message.decode('utf-8')
             if self.db_handler.is_email_notified(uid):
-                print(f"Email UID {uid} already processed and notified, skipping...")
+                logging.info(f"Email UID {uid} already processed and notified, skipping...")
                 continue
 
             _, msg = self.mail.uid('fetch', message, '(BODY.PEEK[])')
             for response_part in msg:
                 if isinstance(response_part, tuple):
                     email_message = self.parse_email(response_part[1])
-                    print('From:', email_message.get('From'))
-                    print('Subject:', email_message.get('Subject'))
-                    print('Body:', email_message.get_payload())
-                    print('------')
+                    sender = email_message.get('From')
+                    subject = email_message.get('Subject')
+                    logging.info(f"Processing Email - UID: {uid}, Sender: {sender}, Subject: {subject}")
                     notifier.send_notification(email_message.get('From'), email_message.get('Subject'))
-                    # Add UID to database to ensure it is not processed in future runs
                     self.db_handler.add_email(uid, 1)
 
         # Delete entries older than 7 days
@@ -164,10 +168,13 @@ class NTFYNotificationProvider(NotificationProvider):
                 )
                 if response.status_code == 200:
                     print(f"Notification sent successfully to {ntfy_url}!")
+                    logging.info(f"Notification sent successfully to {ntfy_url} via ntfy")
                 else:
                     print(f"Failed to send notification to {ntfy_url}. Status Code:", response.status_code)
+                    logging.error(f"Failed to send notification to {ntfy_url} via NTFY. Status Code: {response.status_code}")
             except requests.RequestException as e:
                 print(f"An error occurred while sending notification to {ntfy_url}: {str(e)}")
+                logging.error(f"An error occurred while sending notification to {ntfy_url} via NTFY: {str(e)}")
             finally:
                 time.sleep(5)  # Ensure a delay between notifications
 
@@ -193,10 +200,13 @@ class PushoverNotificationProvider(NotificationProvider):
             response = requests.post(self.pushover_url, data=data)
             if response.status_code == 200:
                 print("Notification sent successfully via Pushover!")
+                logging.info(f"Notification sent successfully via Pushover")
             else:
                 print(f"Failed to send notification via Pushover. Status Code:", response.status_code)
+                logging.error(f"Failed to send notification to via Pushover. Status Code: {response.status_code}")
         except requests.RequestException as e:
             print(f"An error occurred while sending notification via Pushover: {str(e)}")
+            logging.error(f"An error occurred while sending notification via Pushover: {str(e)}")
 
 class GotifyNotificationProvider(NotificationProvider):
     def __init__(self, gotify_url, gotify_token):
@@ -222,11 +232,13 @@ class GotifyNotificationProvider(NotificationProvider):
             response = requests.post(url_with_token, json=payload)
             if response.status_code == 200:
                 print("Notification sent successfully via Gotify!")
+                logging.info(f"Notification sent successfully via Gotify")
             else:
                 print(f"Failed to send notification via Gotify. Status Code: {response.status_code}")
-                print(f"Response: {response.text}")  # Print the response body
+                logging.error(f"Failed to send notification via Gotify. Status Code: {response.status_code}")
         except requests.RequestException as e:
             print(f"An error occurred while sending notification via Gotify: {str(e)}")
+            logging.error(f"An error occurred while sending notification via Gotify: {str(e)}")
 
 
 class Notifier:
@@ -257,6 +269,7 @@ class IMAPHandler:
 
     def idle(self):
         print("IDLE mode started. Waiting for new email...")
+        logging.info(f"IDLE mode started. Waiting for new email...")
         try:
             tag = self.mail._new_tag().decode()
             self.mail.send(f'{tag} IDLE\r\n'.encode('utf-8'))
@@ -271,17 +284,21 @@ class IMAPHandler:
             self.mail.readline()
         except imaplib.IMAP4.abort as e:
             print(f"Connection closed by server: {str(e)}")
+            logging.error(f"Connection closed by server: {str(e)}")
             notifier.send_notification("Script Error", f"Connection closed by server: {str(e)}")
             raise ConnectionAbortedError("Connection lost. Trying to reconnect...")
         except socket.timeout:
             print("Socket timeout during IDLE, re-establishing connection...")
+            loggin.info(f"Socket timeout during IDLE, re-establishing connection...")
             raise ConnectionAbortedError("Socket timeout. Trying to reconnect...")
         except Exception as e:
             print(f"An error occurred: {str(e)}")
+            logging.info(f"An error occurred: {str(e)}")
             notifier.send_notification("Script Error", f"An error occurred: {str(e)}")
             raise
         finally:
             print("IDLE mode stopped.")
+            logging.info(f"IDLE mode stopped.")
 
     def process_emails(self):
         processor = EmailProcessor(self.mail)
@@ -322,12 +339,14 @@ socket.setdefaulttimeout(600)  # e.g., 600 seconds or 10 minutes
 
 def shutdown_handler(signum, frame):
     print("Shutdown signal received. Cleaning up...")
+    logging.info(f"Shutdown signal received. Cleaning up...")
     try:
         handler.mail.logout()
     except:
         pass
     processor.db_handler.close()
     print("Cleanup complete. Exiting.")
+    logging.info(f"Cleanup complete. Exiting.")
     sys.exit(0)
 
 # Register the signal handlers
@@ -335,6 +354,7 @@ signal.signal(signal.SIGTERM, shutdown_handler)
 signal.signal(signal.SIGINT, shutdown_handler)
 
 print("Script started. Press Ctrl+C to stop it anytime.")
+logging.info(f"Script started. Press Ctrl+C to stop it anytime.")
 handler = IMAPHandler(host, email_user, email_pass)
 processor = EmailProcessor(None)  # Creating an instance for graceful shutdown handling
 
@@ -350,9 +370,11 @@ try:
             time.sleep(30)  # wait for 30 seconds before trying to reconnect
         except Exception as e:
             print(f"An unexpected error occurred: {str(e)}")
+            logging.error(f"An unexpected error occurred: {str(e)}")
             notifier.send_notification("Script Error", f"An unexpected error occurred: {str(e)}")
 finally:
     print("Logging out and closing the connection...")
+    logging.info(f"Logging out and closing the connection...")
     try:
         handler.mail.logout()
     except:
