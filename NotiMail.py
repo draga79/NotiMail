@@ -156,15 +156,17 @@ class NTFYNotificationProvider(NotificationProvider):
     def send_notification(self, mail_from, mail_subject):
         mail_subject = mail_subject if mail_subject is not None else "No Subject"
         mail_from = mail_from if mail_from is not None else "Unknown Sender"
-        sanitized_subject = mail_subject.encode('latin-1', errors='replace').decode('latin-1')
-        sanitized_from = mail_from.encode('latin-1', errors='replace').decode('latin-1')
+
+        # Encode the strings in UTF-8
+        encoded_from = mail_from.encode('utf-8')
+        encoded_subject = mail_subject.encode('utf-8')
 
         for ntfy_url in self.ntfy_urls:
             try:
                 response = requests.post(
                     ntfy_url,
-                    data=sanitized_from.encode(encoding='utf-8'),
-                    headers={"Title": sanitized_subject}
+                    data=encoded_from,
+                    headers={"Title": encoded_subject}
                 )
                 if response.status_code == 200:
                     print(f"Notification sent successfully to {ntfy_url}!")
@@ -177,6 +179,7 @@ class NTFYNotificationProvider(NotificationProvider):
                 logging.error(f"An error occurred while sending notification to {ntfy_url} via NTFY: {str(e)}")
             finally:
                 time.sleep(5)  # Ensure a delay between notifications
+
 
 class PushoverNotificationProvider(NotificationProvider):
     def __init__(self, api_token, user_key):
