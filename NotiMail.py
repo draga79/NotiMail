@@ -113,13 +113,10 @@ class DatabaseHandler:
     def close(self):
         self.connection.close()
 
-# Create a global database handler
-db_handler = DatabaseHandler()
-
 class EmailProcessor:
     def __init__(self, mail):
         self.mail = mail
-        self.db_handler = db_handler  # Use the global db_handler
+        self.db_handler = DatabaseHandler()  # Create a new db_handler for each instance
 
     def fetch_unseen_emails(self):
         status, messages = self.mail.uid('search', None, "UNSEEN")
@@ -420,7 +417,6 @@ def multi_account_main():
             handler.mail.logout()
     except:
         pass
-    processor.db_handler.close()
 
 if __name__ == "__main__":
     multi_account_main()
