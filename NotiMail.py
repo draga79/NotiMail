@@ -1,16 +1,16 @@
 """
 NotiMail
-Version: 0.8 - Alpha
+Version: 0.9 - Alpha
 Author: Stefano Marinelli <stefano@dragas.it>
 License: BSD 3-Clause License
 
-NotiMail is a script designed to monitor an email inbox using the IMAP IDLE feature 
+NotiMail is a script designed to monitor one or more email inbox(es) using the IMAP IDLE feature 
 and send notifications via HTTP POST requests when a new email arrives. This version includes 
 additional features to store processed email UIDs in a SQLite3 database and ensure they are not 
 processed repeatedly.
 
 The script uses:
-- IMAP to connect to an email server
+- IMAP to connect to one or more email server(s)
 - IDLE mode to wait for new emails
 - Sends a notification containing the sender and subject of the new email upon receipt
 - Maintains a SQLite database to keep track of processed emails
@@ -24,6 +24,7 @@ Python Dependencies:
 - sqlite3: For database operations.
 - datetime: For date and time operations.
 - signal, sys: For handling script shutdown and signals.
+- threading: to deal with multiple inboxes
 - BytesParser from email.parser: For parsing raw email data.
 
 Configuration:
@@ -70,6 +71,7 @@ import datetime
 import signal
 import sys
 import logging
+import threading
 from email import policy
 from email.parser import BytesParser
 
@@ -111,11 +113,13 @@ class DatabaseHandler:
     def close(self):
         self.connection.close()
 
+# Create a global database handler
+db_handler = DatabaseHandler()
 
 class EmailProcessor:
     def __init__(self, mail):
         self.mail = mail
-        self.db_handler = DatabaseHandler()
+        self.db_handler = db_handler  # Use the global db_handler
 
     def fetch_unseen_emails(self):
         status, messages = self.mail.uid('search', None, "UNSEEN")
@@ -307,62 +311,27 @@ class IMAPHandler:
         processor = EmailProcessor(self.mail)
         processor.process()
 
+class MultiIMAPHandler:
+    def __init__(self, accounts):
+        self.accounts = accounts
+        self.handlers = [IMAPHandler(account['Host'], account['EmailUser'], account['EmailPass']) for account in accounts]
 
-# Load configurations from config.ini
-config = configparser.ConfigParser()
-config.read('config.ini')
+    def run(self):
+        threads = []
+        for handler in self.handlers:
+            thread = threading.Thread(target=self.monitor_account, args=(handler,))
+            thread.daemon = True  # Set thread as daemon
+            threads.append(thread)
+            thread.start()
 
-email_user = config['EMAIL']['EmailUser']
-email_pass = config['EMAIL']['EmailPass']
-host = config['EMAIL']['Host']
-
-# Example: Creating notification providers based on configuration
-providers = []
-
-if 'NTFY' in config:
-    ntfy_urls = [config['NTFY'][url_key] for url_key in config['NTFY']]
-    providers.append(NTFYNotificationProvider(ntfy_urls))
-
-if 'PUSHOVER' in config:
-    api_token = config['PUSHOVER']['ApiToken']
-    user_key = config['PUSHOVER']['UserKey']
-    providers.append(PushoverNotificationProvider(api_token, user_key))
-
-if 'GOTIFY' in config:
-    gotify_url = config['GOTIFY']['Url']
-    gotify_token = config['GOTIFY']['Token']
-    providers.append(GotifyNotificationProvider(gotify_url, gotify_token))
-
-# Initialize Notifier with providers
-notifier = Notifier(providers)
+        for thread in threads:
+            thread.join()
 
 
-# Set a global timeout for all socket operations
-socket.setdefaulttimeout(600)  # e.g., 600 seconds or 10 minutes
-
-def shutdown_handler(signum, frame):
-    print("Shutdown signal received. Cleaning up...")
-    logging.info(f"Shutdown signal received. Cleaning up...")
-    try:
-        handler.mail.logout()
-    except:
-        pass
-    processor.db_handler.close()
-    print("Cleanup complete. Exiting.")
-    logging.info(f"Cleanup complete. Exiting.")
-    sys.exit(0)
-
-# Register the signal handlers
-signal.signal(signal.SIGTERM, shutdown_handler)
-signal.signal(signal.SIGINT, shutdown_handler)
-
-print("Script started. Press Ctrl+C to stop it anytime.")
-logging.info(f"Script started. Press Ctrl+C to stop it anytime.")
-handler = IMAPHandler(host, email_user, email_pass)
-processor = EmailProcessor(None)  # Creating an instance for graceful shutdown handling
-
-try:
-    while True:
+    @staticmethod
+    def monitor_account(handler):
+        print(f"Monitoring {handler.email_user}")
+        logging.info(f"Monitoring {handler.email_user}")
         try:
             handler.connect()
             while True:
@@ -370,17 +339,89 @@ try:
                 handler.process_emails()
         except ConnectionAbortedError as e:
             print(str(e))
-            time.sleep(30)  # wait for 30 seconds before trying to reconnect
+            time.sleep(30)
         except Exception as e:
             print(f"An unexpected error occurred: {str(e)}")
             logging.error(f"An unexpected error occurred: {str(e)}")
             notifier.send_notification("Script Error", f"An unexpected error occurred: {str(e)}")
-finally:
+
+def shutdown_handler(signum, frame):
+    print("Shutdown signal received. Cleaning up...")
+    logging.info(f"Shutdown signal received. Cleaning up...")
+    try:
+        for handler in MultiIMAPHandler.handlers:
+            handler.mail.logout()
+    except:
+        pass
+    db_handler.close()  # Use the global db_handler
+    print("Cleanup complete. Exiting.")
+    logging.info(f"Cleanup complete. Exiting.")
+    sys.exit(0)
+
+def multi_account_main():
+    config = configparser.ConfigParser()
+    config.read('config.ini')
+
+    accounts = []
+
+    # Check for the old format [EMAIL] section
+    if 'EMAIL' in config.sections():
+        old_account = {
+            'EmailUser': config['EMAIL']['EmailUser'],
+            'EmailPass': config['EMAIL']['EmailPass'],
+            'Host': config['EMAIL']['Host']
+        }
+        accounts.append(old_account)
+
+    # Check for new format [EMAIL:accountX]
+    for section in config.sections():
+        if section.startswith("EMAIL:"):
+            account = {
+                'EmailUser': config[section]['EmailUser'],
+                'EmailPass': config[section]['EmailPass'],
+                'Host': config[section]['Host']
+            }
+            accounts.append(account)
+
+    providers = []
+
+    if 'NTFY' in config:
+        ntfy_urls = [config['NTFY'][url_key] for url_key in config['NTFY']]
+        providers.append(NTFYNotificationProvider(ntfy_urls))
+
+    if 'PUSHOVER' in config:
+        api_token = config['PUSHOVER']['ApiToken']
+        user_key = config['PUSHOVER']['UserKey']
+        providers.append(PushoverNotificationProvider(api_token, user_key))
+
+    if 'GOTIFY' in config:
+        gotify_url = config['GOTIFY']['Url']
+        gotify_token = config['GOTIFY']['Token']
+        providers.append(GotifyNotificationProvider(gotify_url, gotify_token))
+
+    global notifier
+    notifier = Notifier(providers)
+
+    socket.setdefaulttimeout(600)
+
+    signal.signal(signal.SIGTERM, shutdown_handler)
+    signal.signal(signal.SIGINT, shutdown_handler)
+
+    print("Script started. Press Ctrl+C to stop it anytime.")
+    logging.info(f"Script started. Press Ctrl+C to stop it anytime.")
+    
+    multi_handler = MultiIMAPHandler(accounts)
+    multi_handler.run()
+
     print("Logging out and closing the connection...")
     logging.info(f"Logging out and closing the connection...")
     try:
-        handler.mail.logout()
+        for handler in MultiIMAPHandler.handlers:
+            handler.mail.logout()
     except:
         pass
     processor.db_handler.close()
+
+if __name__ == "__main__":
+    multi_account_main()
 

@@ -1,14 +1,16 @@
 # NotiMail 📧
 
+**Version 0.9 is here, featuring support for monitoring multiple email accounts!**
+
 **Development is ongoing, and the project is in the early alpha stage - things may break!**
 
-Stay connected without the constant drain on your battery. Introducing **NotiMail** - the future of server-side email notifications supporting multiple push providers!
+Stay connected without the constant drain on your battery. Introducing **NotiMail** - the future of server-side email notifications supporting multiple push providers and multiple email accounts!
 
 Mobile devices often use IMAP IDLE, maintaining a persistent connection to ensure real-time email notifications. Such continuous connections rapidly consume battery power. The modern era demanded a smarter, more energy-efficient solution. Meet NotiMail.
 
 ## Features 🌟
 
--   **Monitors Emails on the Server**: NotiMail checks for new, unseen emails without needing a constant client connection.
+-   **Monitors Multiple Emails on the Server**: With version 0.9, NotiMail can now monitor multiple email accounts. Ensure you never miss an email regardless of which account it's sent to.
     
 -   **Processes and Notifies**: Once a new email is detected, NotiMail swiftly processes its details.
     
@@ -36,7 +38,7 @@ Mobile devices often use IMAP IDLE, maintaining a persistent connection to ensur
 
 -   **Efficient Operation**: Crafted for server-side operations, NotiMail guarantees a smooth, lightweight experience.
     
--   **Customizable Settings**: Through an intuitive `config.ini`, customize NotiMail to fit your needs.
+-   **Customizable Settings**: Through an intuitive `config.ini`, customize NotiMail to fit your needs. With the new 0.9 version, configure multiple email accounts for monitoring.
     
 -   **Dependable Error Handling**: With robust mechanisms, NotiMail ensures you're notified of any hitches or anomalies.
     
@@ -111,7 +113,7 @@ bash
 
 **5. Configure NotiMail:**
 
-Open the `config.ini` file in a text editor. Update the `[EMAIL]` section with your email credentials and host, and the configuration of one (or more) of the supported push providers.
+Open the `config.ini` file in a text editor. From version 0.9, you can configure multiple email accounts for monitoring by adding sections like `[EMAIL:account1]`, `[EMAIL:account2]`, etc. If you're upgrading from an earlier version, your old single `[EMAIL]` configuration is still supported. Also, update the configuration for one (or more) of the supported push providers.
 
 **6. Run NotiMail:**
 
@@ -132,4 +134,8 @@ bash
 
 With that, you should have NotiMail up and running on your system! Enjoy a more efficient email notification experience.
 
+### Changelog:
 
+-   **Version 0.9:**
+    -   Introduced support for monitoring multiple email accounts. Configure multiple accounts in the `config.ini` using the format `[EMAIL:account1]`, `[EMAIL:account2]`, and so on.
+    -   Maintained compatibility with the old single `[EMAIL]` configuration for a smooth upgrade path.
