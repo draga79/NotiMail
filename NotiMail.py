@@ -1,6 +1,6 @@
 """
 NotiMail
-Version: 0.10 - Alpha
+Version: 0.10
 Author: Stefano Marinelli <stefano@dragas.it>
 License: BSD 3-Clause License
 

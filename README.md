@@ -1,6 +1,6 @@
 # NotiMail 📧
 
-**Version 0.9 is here, featuring support for monitoring multiple email accounts!**
+**Version 0.10 is here, featuring support for ntfy auth tokens!**
 
 **Development is ongoing, and the project is in the early alpha stage - things may break!**
 
@@ -136,7 +136,7 @@ With that, you should have NotiMail up and running on your system! Enjoy a more 
 
 ### Changelog:
 
--   **Version 0.10.0 - Alpha, not yet released:**
+-   **Version 0.10:**
     -   Authentication Tokens for NTFY Notifications: Enhanced the NTFYNotificationProvider to support optional authentication tokens. If a token is provided in the config.ini file for a specific NTFY URL, the notification request will include an "Authorization" header for authentication.
 
 -   **Version 0.9:**
