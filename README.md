@@ -136,6 +136,23 @@ With that, you should have NotiMail up and running on your system! Enjoy a more 
 
 ### Changelog:
 
+-   **Version 0.11 Alpha - not yet released:**
+
+New Features:
+
+-   **Configurable Paths:** Introduced the ability to configure the location of the log file and the SQLite database from the configuration file.
+-   **Flexible Configuration:** Added support to specify a custom configuration file when running the script.
+
+Changes:
+
+-   **Codebase:**
+    -   Introduced `argparse` to enable command-line arguments. Users can now specify the path to a configuration file using `-c` or `--config` option.
+    -   Moved the config reading to the top of the script to make it globally accessible.
+    -   Updated the logging setup to fetch the log file location from the config file (`LogFileLocation`). If not set, it defaults to `notimail.log`.
+    -   Modified the `DatabaseHandler` class to fetch the database location from the config file (`DataBaseLocation`). If not set, it defaults to `processed_emails.db`.
+-   **Configuration (`config.ini`):**
+    -   Introduced a new `[GENERAL]` section. Users can specify `LogFileLocation` and `DataBaseLocation` within this section to set the desired paths for the log file and database, respectively.
+
 -   **Version 0.10:**
     -   Authentication Tokens for NTFY Notifications: Enhanced the NTFYNotificationProvider to support optional authentication tokens. If a token is provided in the config.ini file for a specific NTFY URL, the notification request will include an "Authorization" header for authentication.
 

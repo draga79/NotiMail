@@ -1,6 +1,6 @@
 """
 NotiMail
-Version: 0.10
+Version: 0.11 - Alpha
 Author: Stefano Marinelli <stefano@dragas.it>
 License: BSD 3-Clause License
 
@@ -71,18 +71,30 @@ import datetime
 import signal
 import sys
 import logging
+import argparse
 import threading
 from email import policy
 from email.parser import BytesParser
 
-# Setup logging
-logging.basicConfig(filename='notimail.log',
+# Argument parsing to get the config file
+parser = argparse.ArgumentParser(description='NotiMail Notification Service.')
+parser.add_argument('-c', '--config', type=str, default='config.ini', help='Path to the configuration file.')
+args = parser.parse_args()
+
+# Configuration reading
+config = configparser.ConfigParser()
+config.read(args.config)
+
+# Logging setup using config (or default if not set)
+log_file_location = config.get('GENERAL', 'LogFileLocation', fallback='notimail.log')
+logging.basicConfig(filename=log_file_location,
                     level=logging.INFO,
                     format='%(asctime)s - %(threadName)s - %(levelname)s - %(message)s')
 
-
 class DatabaseHandler:
-    def __init__(self, db_name="processed_emails.db"):
+    def __init__(self, db_name=None):
+        if db_name is None:
+            db_name = config.get('GENERAL', 'DataBaseLocation', fallback="processed_emails.db")
         self.connection = sqlite3.connect(db_name)
         self.cursor = self.connection.cursor()
         self.create_table()
@@ -366,9 +378,6 @@ def shutdown_handler(signum, frame):
     sys.exit(0)
 
 def multi_account_main():
-    config = configparser.ConfigParser()
-    config.read('config.ini')
-
     accounts = []
 
     # Check for the old format [EMAIL] section
