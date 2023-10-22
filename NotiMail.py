@@ -350,7 +350,6 @@ def shutdown_handler(signum, frame):
             handler.mail.logout()
     except:
         pass
-    db_handler.close()  # Use the global db_handler
     print("Cleanup complete. Exiting.")
     logging.info(f"Cleanup complete. Exiting.")
     sys.exit(0)
