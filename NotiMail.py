@@ -288,6 +288,8 @@ class IMAPHandler:
                 line = self.mail.readline()
                 if line:
                     print(line.decode('utf-8'))
+                    if b'BYE' in line:
+                        raise ConnectionAbortedError("Received BYE from server. Trying to reconnect...")
                     if b'EXISTS' in line:
                         break
             self.mail.send(b'DONE\r\n')
@@ -330,23 +332,24 @@ class MultiIMAPHandler:
         for thread in threads:
             thread.join()
 
-
     @staticmethod
     def monitor_account(handler):
         print(f"Monitoring {handler.email_user}")
         logging.info(f"Monitoring {handler.email_user}")
-        try:
-            handler.connect()
-            while True:
-                handler.idle()
-                handler.process_emails()
-        except ConnectionAbortedError as e:
-            print(str(e))
-            time.sleep(30)
-        except Exception as e:
-            print(f"An unexpected error occurred: {str(e)}")
-            logging.error(f"An unexpected error occurred: {str(e)}")
-            notifier.send_notification("Script Error", f"An unexpected error occurred: {str(e)}")
+        while True:  # Add a loop to keep retrying on connection loss
+            try:
+                handler.connect()
+                while True:
+                    handler.idle()
+                    handler.process_emails()
+            except ConnectionAbortedError as e:
+                print(str(e))
+                time.sleep(30)  # Sleep for 30 seconds before retrying
+            except Exception as e:
+                print(f"An unexpected error occurred: {str(e)}")
+                logging.error(f"An unexpected error occurred: {str(e)}")
+                notifier.send_notification("Script Error", f"An unexpected error occurred: {str(e)}")
+                break
 
 def shutdown_handler(signum, frame):
     print("Shutdown signal received. Cleaning up...")
@@ -410,7 +413,7 @@ def multi_account_main():
     global notifier
     notifier = Notifier(providers)
 
-    socket.setdefaulttimeout(600)
+    socket.setdefaulttimeout(480)
 
     signal.signal(signal.SIGTERM, shutdown_handler)
     signal.signal(signal.SIGINT, shutdown_handler)
