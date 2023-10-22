@@ -78,7 +78,8 @@ from email.parser import BytesParser
 # Setup logging
 logging.basicConfig(filename='notimail.log',
                     level=logging.INFO,
-                    format='%(asctime)s - %(levelname)s - %(message)s')
+                    format='%(asctime)s - %(threadName)s - %(levelname)s - %(message)s')
+
 
 class DatabaseHandler:
     def __init__(self, db_name="processed_emails.db"):
@@ -274,12 +275,12 @@ class IMAPHandler:
             self.mail.select('inbox')
         except imaplib.IMAP4.error as e:
             print(f"Cannot connect: {str(e)}")
-            notifier.send_notification("Script Error", f"Cannot connect: {str(e)}")
+            notifier.send_notification("Script Error", f"[{self.email_user}] Cannot connect: {str(e)}")
             raise
 
     def idle(self):
         print("IDLE mode started. Waiting for new email...")
-        logging.info(f"IDLE mode started. Waiting for new email...")
+        logging.info(f"[{self.email_user}] IDLE mode started. Waiting for new email...")
         try:
             tag = self.mail._new_tag().decode()
             self.mail.send(f'{tag} IDLE\r\n'.encode('utf-8'))
@@ -289,28 +290,28 @@ class IMAPHandler:
                 if line:
                     print(line.decode('utf-8'))
                     if b'BYE' in line:
-                        raise ConnectionAbortedError("Received BYE from server. Trying to reconnect...")
+                        raise ConnectionAbortedError("[{self.email_user}] Received BYE from server. Trying to reconnect...")
                     if b'EXISTS' in line:
                         break
             self.mail.send(b'DONE\r\n')
             self.mail.readline()
         except imaplib.IMAP4.abort as e:
             print(f"Connection closed by server: {str(e)}")
-            logging.error(f"Connection closed by server: {str(e)}")
-            notifier.send_notification("Script Error", f"Connection closed by server: {str(e)}")
-            raise ConnectionAbortedError("Connection lost. Trying to reconnect...")
+            logging.error(f"[{self.email_user}] Connection closed by server: {str(e)}")
+            notifier.send_notification("Script Error", f"[{self.email_user}] Connection closed by server: {str(e)}")
+            raise ConnectionAbortedError("[{self.email_user}] Connection lost. Trying to reconnect...")
         except socket.timeout:
             print("Socket timeout during IDLE, re-establishing connection...")
-            logging.info(f"Socket timeout during IDLE, re-establishing connection...")
-            raise ConnectionAbortedError("Socket timeout. Trying to reconnect...")
+            logging.info(f"[{self.email_user}] Socket timeout during IDLE, re-establishing connection...")
+            raise ConnectionAbortedError("[{self.email_user}] Socket timeout. Trying to reconnect...")
         except Exception as e:
             print(f"An error occurred: {str(e)}")
-            logging.info(f"An error occurred: {str(e)}")
-            notifier.send_notification("Script Error", f"An error occurred: {str(e)}")
+            logging.info(f"[{self.email_user}] An error occurred: {str(e)}")
+            notifier.send_notification("Script Error", f"[{self.email_user}] An error occurred: {str(e)}")
             raise
         finally:
             print("IDLE mode stopped.")
-            logging.info(f"IDLE mode stopped.")
+            logging.info(f"[{self.email_user}] IDLE mode stopped.")
 
     def process_emails(self):
         processor = EmailProcessor(self.mail)
@@ -324,7 +325,8 @@ class MultiIMAPHandler:
     def run(self):
         threads = []
         for handler in self.handlers:
-            thread = threading.Thread(target=self.monitor_account, args=(handler,))
+            #thread = threading.Thread(target=self.monitor_account, args=(handler,))
+            thread = threading.Thread(target=self.monitor_account, args=(handler,), name=handler.email_user)
             thread.daemon = True  # Set thread as daemon
             threads.append(thread)
             thread.start()
