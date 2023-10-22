@@ -136,6 +136,9 @@ With that, you should have NotiMail up and running on your system! Enjoy a more 
 
 ### Changelog:
 
+-   **Version 0.10.0 - Alpha, not yet released:**
+    -   Authentication Tokens for NTFY Notifications: Enhanced the NTFYNotificationProvider to support optional authentication tokens. If a token is provided in the config.ini file for a specific NTFY URL, the notification request will include an "Authorization" header for authentication.
+
 -   **Version 0.9:**
     -   Introduced support for monitoring multiple email accounts. Configure multiple accounts in the `config.ini` using the format `[EMAIL:account1]`, `[EMAIL:account2]`, and so on.
     -   Maintained compatibility with the old single `[EMAIL]` configuration for a smooth upgrade path.

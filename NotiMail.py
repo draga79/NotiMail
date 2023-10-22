@@ -1,6 +1,6 @@
 """
 NotiMail
-Version: 0.9 - Alpha
+Version: 0.10 - Alpha
 Author: Stefano Marinelli <stefano@dragas.it>
 License: BSD 3-Clause License
 
@@ -151,8 +151,9 @@ class NotificationProvider:
         raise NotImplementedError("Subclasses must implement this method")
 
 class NTFYNotificationProvider(NotificationProvider):
-    def __init__(self, ntfy_urls):
-        self.ntfy_urls = ntfy_urls  # Expecting a list of URLs
+    def __init__(self, ntfy_data):
+        #self.ntfy_urls = ntfy_urls  # Expecting a list of URLs
+        self.ntfy_data = ntfy_data  # Expecting a list of (URL, Token) tuples
     
     def send_notification(self, mail_from, mail_subject):
         mail_subject = mail_subject if mail_subject is not None else "No Subject"
@@ -162,12 +163,16 @@ class NTFYNotificationProvider(NotificationProvider):
         encoded_from = mail_from.encode('utf-8')
         encoded_subject = mail_subject.encode('utf-8')
 
-        for ntfy_url in self.ntfy_urls:
+        for ntfy_url, token in self.ntfy_data:
+            headers = {"Title": encoded_subject}
+            if token:
+                headers["Authorization"] = f"Bearer {token}"
+
             try:
                 response = requests.post(
                     ntfy_url,
                     data=encoded_from,
-                    headers={"Title": encoded_subject}
+                    headers=headers
                 )
                 if response.status_code == 200:
                     print(f"Notification sent successfully to {ntfy_url}!")
@@ -180,6 +185,7 @@ class NTFYNotificationProvider(NotificationProvider):
                 logging.error(f"An error occurred while sending notification to {ntfy_url} via NTFY: {str(e)}")
             finally:
                 time.sleep(5)  # Ensure a delay between notifications
+
 
 
 class PushoverNotificationProvider(NotificationProvider):
@@ -382,8 +388,14 @@ def multi_account_main():
     providers = []
 
     if 'NTFY' in config:
-        ntfy_urls = [config['NTFY'][url_key] for url_key in config['NTFY']]
-        providers.append(NTFYNotificationProvider(ntfy_urls))
+        ntfy_data = []
+        for key in config['NTFY']:
+            if key.startswith("url"):
+                url = config['NTFY'][key]
+                token_key = "token" + key[3:]
+                token = config['NTFY'].get(token_key, None)  # Retrieve the token if it exists, else default to None
+                ntfy_data.append((url, token))
+        providers.append(NTFYNotificationProvider(ntfy_data))
 
     if 'PUSHOVER' in config:
         api_token = config['PUSHOVER']['ApiToken']
