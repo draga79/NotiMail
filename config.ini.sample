@@ -1,6 +1,6 @@
 [GENERAL]
-LogFileLocation = notimail.log
-DataBaseLocation = processed_emails.db
+LogFileLocation = /var/log/notimail/notimail.log
+DataBaseLocation = /var/cache/notimail/processed_emails.db
 
 [EMAIL:account1]
 EmailUser = your@address.com
