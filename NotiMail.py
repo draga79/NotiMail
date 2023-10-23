@@ -287,7 +287,7 @@ class IMAPHandler:
             self.mail.select('inbox')
         except imaplib.IMAP4.error as e:
             print(f"Cannot connect: {str(e)}")
-            notifier.send_notification("Script Error", f"[{self.email_user}] Cannot connect: {str(e)}")
+            notifier.send_notification("Script Error", f"Cannot connect: {str(e)}")
             raise
 
     def idle(self):
@@ -302,7 +302,7 @@ class IMAPHandler:
                 if line:
                     print(line.decode('utf-8'))
                     if b'BYE' in line:
-                        raise ConnectionAbortedError("[{self.email_user}] Received BYE from server. Trying to reconnect...")
+                        raise ConnectionAbortedError("Received BYE from server. Trying to reconnect...")
                     if b'EXISTS' in line:
                         break
             self.mail.send(b'DONE\r\n')
@@ -310,16 +310,16 @@ class IMAPHandler:
         except imaplib.IMAP4.abort as e:
             print(f"Connection closed by server: {str(e)}")
             logging.error(f"[{self.email_user}] Connection closed by server: {str(e)}")
-            notifier.send_notification("Script Error", f"[{self.email_user}] Connection closed by server: {str(e)}")
-            raise ConnectionAbortedError("[{self.email_user}] Connection lost. Trying to reconnect...")
+            notifier.send_notification("Script Error", f"Connection closed by server: {str(e)}")
+            raise ConnectionAbortedError("Connection lost. Trying to reconnect...")
         except socket.timeout:
             print("Socket timeout during IDLE, re-establishing connection...")
             logging.info(f"[{self.email_user}] Socket timeout during IDLE, re-establishing connection...")
-            raise ConnectionAbortedError("[{self.email_user}] Socket timeout. Trying to reconnect...")
+            raise ConnectionAbortedError("Socket timeout. Trying to reconnect...")
         except Exception as e:
             print(f"An error occurred: {str(e)}")
             logging.info(f"[{self.email_user}] An error occurred: {str(e)}")
-            notifier.send_notification("Script Error", f"[{self.email_user}] An error occurred: {str(e)}")
+            notifier.send_notification("Script Error", f"An error occurred: {str(e)}")
             raise
         finally:
             print("IDLE mode stopped.")
