@@ -1,6 +1,6 @@
 # NotiMail 📧
 
-**Version 0.10 is here, featuring support for ntfy auth tokens!**
+**Version 0.11 is here, read the changelog for more information!**
 
 **Development is ongoing, and the project is in the early alpha stage - things may break!**
 
@@ -136,12 +136,13 @@ With that, you should have NotiMail up and running on your system! Enjoy a more 
 
 ## Changelog
 
-### Version 0.11 Alpha (Not Yet Released)
+### Version 0.11
 
 #### New Features:
 
-- Configurable Paths: You can now customize the location of the log file and the SQLite database from the configuration file.
-- Flexible Configuration: Added support for specifying a custom configuration file when running the script.
+- Command-Line Flexibility: Now you can customize your config file path using -c or --config flags. The default remains 'config.ini'.
+- Man Page: Introduced a man page for NotiMail, making it easier for users to understand usage and options.
+- Dynamic Database Location: Configure your database path in the settings, allowing for more flexible deployments.
 
 #### Changes:
 
@@ -150,6 +151,9 @@ With that, you should have NotiMail up and running on your system! Enjoy a more 
   - Moved the configuration reading to the top of the script to make it globally accessible.
   - Updated the logging setup to use the log file location from the config file (`LogFileLocation`). If not set, it defaults to `notimail.log`.
   - Modified the `DatabaseHandler` class to use the database location from the config file (`DataBaseLocation`). If not set, it defaults to `processed_emails.db`.
+  - Improved Logging: Logs now include thread names, providing clearer insights into operations.
+  - Stability Upgrades: Enhanced handling of 'BYE' responses from servers. Plus, in case of connection loss, the tool will now auto-retry to maintain smooth operations.
+  - Socket Timeout: Adjusted the default socket timeout setting to further optimize responsiveness.
 - **Configuration (`config.ini`):**
   - Introduced a new `[GENERAL]` section. You can specify `LogFileLocation` and `DataBaseLocation` within this section to set the desired paths for the log file and database, respectively.
 
