@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 NotiMail
 Version: 0.11 - Alpha

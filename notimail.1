@@ -1,0 +1,107 @@
+.\" Man page for NotiMail
+.TH MAN 1 "23 October 2023"
+.SH NAME
+NotiMail \- Monitor email inbox(es) and send HTTP POST notifications upon new email arrivals.
+.SH SYNOPSIS
+.B notimail
+[\fB-c\fR \fICONFIG\fR]
+.SH DESCRIPTION
+NotiMail is a script designed to monitor one or more email inbox(es) using the IMAP IDLE feature and send notifications via HTTP POST requests when a new email arrives. The script can connect to multiple email servers and send notifications to different platforms, including NTFY, Pushover, and Gotify.
+.P
+Key features:
+.RS
+.IP "*"
+Monitors one or more email inboxes using IMAP IDLE.
+.IP "*"
+Sends notifications containing the sender and subject of new emails.
+.IP "*"
+Maintains a SQLite database to ensure that emails are not processed repeatedly.
+.IP "*"
+Supports multiple notification providers: NTFY, Pushover, and Gotify.
+.RE
+.SH OPTIONS
+.TP
+\fB-c\fR, \fB--config\fR \fICONFIG\fR
+Specify the path to the configuration file. Defaults to \fIconfig.ini\fR.
+.SH CONFIGURATION
+Configuration data is read from a file named \fIconfig.ini\fR. Ensure it's correctly set up before running the script. The configuration file has multiple sections:
+.P
+.RS
+.IP "[GENERAL]:"
+.IP LogFileLocation:
+Path to the log file.
+.IP DataBaseLocation:
+Path to the SQLite3 database for storing processed emails.
+.IP "[EMAIL:accountX]:"
+Defines an email account. Replace \fIaccountX\fR with a unique identifier for each email account.
+.IP EmailUser:
+The email address.
+.IP EmailPass:
+The password for the email address.
+.IP Host:
+The email server.
+.IP "[NTFY]:"
+Configuration for the NTFY notification provider.
+.IP UrlX:
+The NTFY URL for sending notifications. Replace \fIX\fR with a unique number.
+.IP TokenX:
+(Optional) Token for sending notifications to protected topics.
+.IP "[PUSHOVER]:"
+Configuration for the Pushover notification provider.
+.IP ApiToken:
+Your Pushover API token.
+.IP UserKey:
+Your Pushover user key.
+.IP "[GOTIFY]:"
+Configuration for the Gotify notification provider.
+.IP Url:
+The Gotify URL for sending messages.
+.IP Token:
+Your Gotify token.
+.RE
+.SH DEPENDENCIES
+Python libraries:
+.RS
+.IP "*"
+imaplib
+.IP "*"
+email
+.IP "*"
+requests
+.IP "*"
+configparser
+.IP "*"
+time, socket
+.IP "*"
+sqlite3
+.IP "*"
+datetime
+.IP "*"
+signal, sys
+.IP "*"
+logging
+.IP "*"
+argparse
+.IP "*"
+threading
+.IP "*"
+BytesParser from email.parser
+.RE
+.SH EXAMPLES
+1. Running NotiMail with the default configuration file:
+.RS
+.IP ""
+notimail
+.RE
+2. Specifying a custom configuration file:
+.RS
+.IP ""
+notimail \-c /path/to/custom_config.ini
+.RE
+.SH AUTHOR
+Stefano Marinelli <stefano@dragas.it>
+.SH LICENSE
+BSD 3-Clause License. See the source distribution for details.
+.SH SEE ALSO
+IMAP IDLE, SQLite3, NTFY, Pushover, Gotify.
+
