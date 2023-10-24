@@ -6,25 +6,27 @@ DataBaseLocation = /var/cache/notimail/processed_emails.db
 EmailUser = your@address.com
 EmailPass = YourPassword
 Host = mail.server.com
+#Folders = inbox, sent
 
 #[EMAIL:account2]
 #EmailUser = your@address.com
 #EmailPass = YourPassword
 #Host = mail.server.com
+#Folders = inbox, sent
 
-#If your provider is NTFY, uncomment the following lines and configure
+#If your provider is NTFY, uncomment the following lines and configure. If using NTFY, also uncomment the [NTFY] line
 #[NTFY]
 #Url1 = https://ntfy.sh/TOPIC1
 #Token1 = Optional token to send notifications to protected topics
 #Url2 = https://ntfy.sh/TOPIC2
 #Token2 = Optional token to send notifications to protected topics
 
-#If your provider is PUSHOVER, uncomment the following lines and configure
+#If your provider is PUSHOVER, uncomment the following lines and configure. If using PUSHOVER, also uncomment the [PUSHOVER] line
 #[PUSHOVER]
 #ApiToken = YOUR_PUSHOVER_API_TOKEN
 #UserKey = YOUR_PUSHOVER_USER_KEY
 
-#If your provider is GOTIFY, uncomment the following lines and configure
+#If your provider is GOTIFY, uncomment the following lines and configure. If using GOTIFY, also uncomment the [GOTIFY] line
 #[GOTIFY]
 #Url = https://gotify.example.com/message
 #Token = your_gotify_token

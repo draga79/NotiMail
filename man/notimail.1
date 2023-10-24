@@ -1,28 +1,44 @@
 .\" Man page for NotiMail
-.TH MAN 1 "23 October 2023"
+.TH MAN 1 "24 October 2023"
 .SH NAME
-NotiMail \- Monitor email inbox(es) and send HTTP POST notifications upon new email arrivals.
+NotiMail \- Monitor email inbox(es) and send notifications upon new email arrivals using various providers.
 .SH SYNOPSIS
 .B notimail
 [\fB-c\fR \fICONFIG\fR]
+[\fB--check-config\fR]
+[\fB--test-config\fR]
+[\fB--list-folders\fR]
 .SH DESCRIPTION
-NotiMail is a script designed to monitor one or more email inbox(es) using the IMAP IDLE feature and send notifications via HTTP POST requests when a new email arrives. The script can connect to multiple email servers and send notifications to different platforms, including NTFY, Pushover, and Gotify.
+NotiMail is a script designed to monitor one or more email inboxes using the IMAP IDLE feature. It sends notifications when a new email arrives. The script can connect to multiple email servers and send notifications to different platforms, including NTFY, Pushover, and Gotify.
 .P
 Key features:
 .RS
 .IP "*"
 Monitors one or more email inboxes using IMAP IDLE.
 .IP "*"
+Supports monitoring of multiple folders per email account.
+.IP "*"
 Sends notifications containing the sender and subject of new emails.
 .IP "*"
 Maintains a SQLite database to ensure that emails are not processed repeatedly.
 .IP "*"
 Supports multiple notification providers: NTFY, Pushover, and Gotify.
+.IP "*"
+Provides command-line functionalities to validate, test, and list IMAP folders.
 .RE
 .SH OPTIONS
 .TP
 \fB-c\fR, \fB--config\fR \fICONFIG\fR
 Specify the path to the configuration file. Defaults to \fIconfig.ini\fR.
+.TP
+\fB--check-config\fR
+Check and print the configurations set in the `config.ini` file.
+.TP
+\fB--test-config\fR
+Test if the configurations set in the `config.ini` file are working properly.
+.TP
+\fB--list-folders\fR
+List all the IMAP folders of the configured mailboxes.
 .SH CONFIGURATION
 Configuration data is read from a file named \fIconfig.ini\fR. Ensure it's correctly set up before running the script. The configuration file has multiple sections:
 .P
@@ -40,6 +56,8 @@ The email address.
 The password for the email address.
 .IP Host:
 The email server.
+.IP Folders:
+A comma-separated list of folders to monitor.
 .IP "[NTFY]:"
 Configuration for the NTFY notification provider.
 .IP UrlX:
@@ -98,10 +116,24 @@ notimail
 .IP ""
 notimail \-c /path/to/custom_config.ini
 .RE
+3. Checking the current configuration:
+.RS
+.IP ""
+notimail --check-config
+.RE
+4. Testing the configuration settings:
+.RS
+.IP ""
+notimail --test-config
+.RE
+5. Listing IMAP folders of the configured mailboxes:
+.RS
+.IP ""
+notimail --list-folders
+.RE
 .SH AUTHOR
 Stefano Marinelli <stefano@dragas.it>
 .SH LICENSE
 BSD 3-Clause License. See the source distribution for details.
 .SH SEE ALSO
 IMAP IDLE, SQLite3, NTFY, Pushover, Gotify.
-

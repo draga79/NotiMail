@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 NotiMail
-Version: 0.11
+Version: 0.12
 Author: Stefano Marinelli <stefano@dragas.it>
 License: BSD 3-Clause License
 
@@ -80,6 +80,9 @@ from email.parser import BytesParser
 # Argument parsing to get the config file
 parser = argparse.ArgumentParser(description='NotiMail Notification Service.')
 parser.add_argument('-c', '--config', type=str, default='config.ini', help='Path to the configuration file.')
+parser.add_argument('--print-config', action='store_true', help='Print the configuration options from config.ini')
+parser.add_argument('--test-config', action='store_true', help='Test the configuration options to ensure they work properly')
+parser.add_argument('--list-folders', action='store_true', help='List all IMAP folders of the configured mailboxes')
 args = parser.parse_args()
 
 # Configuration reading
@@ -275,17 +278,18 @@ class Notifier:
 
 
 class IMAPHandler:
-    def __init__(self, host, email_user, email_pass):
+    def __init__(self, host, email_user, email_pass, folder="inbox"):
         self.host = host
         self.email_user = email_user
         self.email_pass = email_pass
+        self.folder = folder
         self.mail = None
 
     def connect(self):
         try:
             self.mail = imaplib.IMAP4_SSL(self.host, 993)
             self.mail.login(self.email_user, self.email_pass)
-            self.mail.select('inbox')
+            self.mail.select(self.folder)
         except imaplib.IMAP4.error as e:
             print(f"Cannot connect: {str(e)}")
             notifier.send_notification("Script Error", f"Cannot connect: {str(e)}")
@@ -293,7 +297,7 @@ class IMAPHandler:
 
     def idle(self):
         print("IDLE mode started. Waiting for new email...")
-        logging.info(f"[{self.email_user}] IDLE mode started. Waiting for new email...")
+        logging.info(f"[{self.email_user} - {self.folder}] IDLE mode started. Waiting for new email...")
         try:
             tag = self.mail._new_tag().decode()
             self.mail.send(f'{tag} IDLE\r\n'.encode('utf-8'))
@@ -333,7 +337,7 @@ class IMAPHandler:
 class MultiIMAPHandler:
     def __init__(self, accounts):
         self.accounts = accounts
-        self.handlers = [IMAPHandler(account['Host'], account['EmailUser'], account['EmailPass']) for account in accounts]
+        self.handlers = [IMAPHandler(account['Host'], account['EmailUser'], account['EmailPass'], account['Folder']) for account in accounts]
 
     def run(self):
         threads = []
@@ -349,8 +353,8 @@ class MultiIMAPHandler:
 
     @staticmethod
     def monitor_account(handler):
-        print(f"Monitoring {handler.email_user}")
-        logging.info(f"Monitoring {handler.email_user}")
+        print(f"Monitoring {handler.email_user} - Folder: {handler.folder}")
+        logging.info(f"Monitoring {handler.email_user} - Folder: {handler.folder}")
         while True:  # Add a loop to keep retrying on connection loss
             try:
                 handler.connect()
@@ -393,12 +397,15 @@ def multi_account_main():
     # Check for new format [EMAIL:accountX]
     for section in config.sections():
         if section.startswith("EMAIL:"):
-            account = {
-                'EmailUser': config[section]['EmailUser'],
-                'EmailPass': config[section]['EmailPass'],
-                'Host': config[section]['Host']
-            }
-            accounts.append(account)
+            folders = config[section].get('Folders', 'inbox').split(', ')
+            for folder in folders:
+                account = {
+                    'EmailUser': config[section]['EmailUser'],
+                    'EmailPass': config[section]['EmailPass'],
+                    'Host': config[section]['Host'],
+                    'Folder': folder
+                }
+                accounts.append(account)
 
     providers = []
 
@@ -444,6 +451,97 @@ def multi_account_main():
     except:
         pass
 
+def print_config():
+    """
+    Function to print the configuration options from config.ini
+    """
+    for section in config.sections():
+        print(f"[{section}]")
+        for key, value in config[section].items():
+            print(f"{key} = {value}")
+        print()
+
+def test_config():
+    """
+    Function to test the configuration options
+    """
+    # Test Email accounts
+    for section in config.sections():
+        if section.startswith("EMAIL:"):
+            print(f"Testing {section}...")
+            handler = IMAPHandler(config[section]['Host'], config[section]['EmailUser'], config[section]['EmailPass'])
+            try:
+                handler.connect()
+                print(f"Connection successful for {section}")
+                handler.mail.logout()  # Explicitly logging out after testing
+            except Exception as e:
+                print(f"Connection failed for {section}. Reason: {str(e)}")
+
+    # Testing NTFY Notification Provider
+    if 'NTFY' in config:
+        print("Testing NTFY Notification Provider...")
+        ntfy_data = []
+        for key in config['NTFY']:
+            if key.startswith("url"):
+                url = config['NTFY'][key]
+                token_key = "token" + key[3:]
+                token = config['NTFY'].get(token_key, None)
+                ntfy_data.append((url, token))
+        ntfy_provider = NTFYNotificationProvider(ntfy_data)
+        try:
+            ntfy_provider.send_notification("Test Sender", "Test Notification from NotiMail")
+            print("Test notification sent successfully via NTFY!")
+        except Exception as e:
+            print(f"Failed to send test notification via NTFY. Reason: {str(e)}")
+
+    # Testing Pushover Notification Provider
+    if 'PUSHOVER' in config:
+        print("Testing Pushover Notification Provider...")
+        pushover_provider = PushoverNotificationProvider(config['PUSHOVER']['ApiToken'], config['PUSHOVER']['UserKey'])
+        try:
+            pushover_provider.send_notification("Test Sender", "Test Notification from NotiMail")
+            print("Test notification sent successfully via Pushover!")
+        except Exception as e:
+            print(f"Failed to send test notification via Pushover. Reason: {str(e)}")
+
+    # Testing Gotify Notification Provider
+    if 'GOTIFY' in config:
+        print("Testing Gotify Notification Provider...")
+        gotify_provider = GotifyNotificationProvider(config['GOTIFY']['Url'], config['GOTIFY']['Token'])
+        try:
+            gotify_provider.send_notification("Test Sender", "Test Notification from NotiMail")
+            print("Test notification sent successfully via Gotify!")
+        except Exception as e:
+            print(f"Failed to send test notification via Gotify. Reason: {str(e)}")
+
+    print("Testing done!")
+
+
+def list_imap_folders():
+    """
+    Function to list all IMAP folders of the configured mailboxes
+    """
+    for section in config.sections():
+        if section.startswith("EMAIL:"):
+            print(f"Listing folders for {section}...")
+            handler = IMAPHandler(config[section]['Host'], config[section]['EmailUser'], config[section]['EmailPass'])
+            try:
+                handler.connect()
+                typ, folders = handler.mail.list()
+                for folder in folders:
+                    print(folder.decode())
+                handler.mail.logout()  # Explicitly logging out after listing folders
+            except Exception as e:
+                print(f"Failed to list folders for {section}. Reason: {str(e)}")
+
+
 if __name__ == "__main__":
-    multi_account_main()
+    if args.print_config:
+        print_config()
+    elif args.test_config:
+        test_config()
+    elif args.list_folders:
+        list_imap_folders()
+    else:
+        multi_account_main()
 

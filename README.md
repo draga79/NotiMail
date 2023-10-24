@@ -1,6 +1,6 @@
 # NotiMail 📧
 
-**Version 0.11 is here, read the changelog for more information!**
+**Version 0.12 is here, read the changelog for more information!**
 
 **Development is ongoing, and the project is in the early alpha stage - things may break!**
 
@@ -10,18 +10,19 @@ Mobile devices often use IMAP IDLE, maintaining a persistent connection to ensur
 
 ## Features 🌟
 
--   **Monitors Multiple Emails on the Server**: With version 0.9, NotiMail can now monitor multiple email accounts. Ensure you never miss an email regardless of which account it's sent to.
-    
--   **Processes and Notifies**: Once a new email is detected, NotiMail swiftly processes its details.
-    
--   **Leverages Multiple Push Providers for Alerts**: Rather than having your device always on alert, NotiMail sends notifications via multiple push providers, ensuring you're promptly informed.
+- **Monitors Multiple Emails on the Server**: From version 0.9 onwards, NotiMail can monitor multiple email accounts. Ensure you never miss an email regardless of which account it's sent to.
 
--   **Database Integration**: NotiMail uses an SQLite3 database to store and manage processed email UIDs, preventing repeated processing.
-    
--   **Built for Resilience**: With connectivity hiccups in mind, NotiMail ensures you're always the first to know.
+- **Monitors Multiple Folders per Account**: With version 0.12, you can configure NotiMail to monitor multiple folders for each email account. Whether it's your 'inbox', 'junk', or any other folder, stay informed with NotiMail.
 
--   **Multiple And Different Push providers supported**: You can use one or more of the supported Push providers - all support authentication, which currently include ntfy, Gotify and Pushover.
-    
+- **Processes and Notifies**: Once a new email is detected, NotiMail swiftly processes its details.
+
+- **Leverages Multiple Push Providers for Alerts**: Rather than having your device always on alert, NotiMail sends notifications via multiple push providers, ensuring you're promptly informed.
+
+- **Database Integration**: NotiMail uses an SQLite3 database to store and manage processed email UIDs, preventing repeated processing.
+
+- **Built for Resilience**: With connectivity hiccups in mind, NotiMail ensures you're always the first to know.
+
+- **Multiple And Different Push providers supported**: You can use one or more of the supported Push providers - all support authentication, which currently include ntfy, Gotify, and Pushover.
 
 ## Benefits 🚀
 
@@ -135,6 +136,21 @@ bash
 With that, you should have NotiMail up and running on your system! Enjoy a more efficient email notification experience.
 
 ## Changelog
+
+### Version 0.12
+
+#### New Features:
+
+- **Multiple Folder Monitoring**: From this version onwards, NotiMail supports monitoring multiple folders for each configured email account. This allows users to, for example, monitor both the 'inbox' and 'junk' folders simultaneously. Each folder is treated as a separate connection, ensuring robust and comprehensive monitoring.
+- **Configuration Validation**: Introduced command-line functions to validate the config.ini file. This ensures that your settings are correctly configured before you start the NotiMail service.
+- **Notification Provider Testing**: You can now test the notification providers by sending a test notification to verify their correct setup and functioning.
+- **IMAP Folder Listing**: Added a feature to list all IMAP folders of the configured mailboxes, providing better insights and facilitating precise folder monitoring.
+  
+#### Changes:
+
+- **Configuration (`config.ini`)**: Introduced the ability to specify multiple folders for each email account using the `Folders` configuration key. If not specified, it defaults to the 'inbox' folder.
+- **Logging Enhancements**: All logging and print statements now include the folder name, providing a clearer understanding of ongoing operations per folder.
+- **Codebase**: Enhanced error handling, and improved logging to provide clearer insights into the application's operations.
 
 ### Version 0.11
 
