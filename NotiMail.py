@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 NotiMail
-Version: 0.12
+Version: 0.12.1
 Author: Stefano Marinelli <stefano@dragas.it>
 License: BSD 3-Clause License
 
@@ -102,24 +102,40 @@ class DatabaseHandler:
         self.connection = sqlite3.connect(db_name)
         self.cursor = self.connection.cursor()
         self.create_table()
+        self.update_schema_if_needed()
 
     def create_table(self):
         self.cursor.execute('''
         CREATE TABLE IF NOT EXISTS processed_emails (
-            uid TEXT PRIMARY KEY,
+            email_account TEXT,
+            uid TEXT,
             notified INTEGER,
-            processed_date TEXT
+            processed_date TEXT,
+            PRIMARY KEY(email_account, uid)
         )''')
         self.connection.commit()
 
-    def add_email(self, uid, notified):
+    def update_schema_if_needed(self):
+        # Check if the email_account column exists
+        self.cursor.execute("PRAGMA table_info(processed_emails)")
+        columns = [column[1] for column in self.cursor.fetchall()]
+        if 'email_account' not in columns:
+            # Add the email_account column and set its default value to 'unknown'
+            self.cursor.execute("ALTER TABLE processed_emails ADD COLUMN email_account TEXT DEFAULT 'unknown'")
+            # Update the primary key to be a composite key of email_account and uid
+            self.cursor.execute("CREATE UNIQUE INDEX idx_email_account_uid ON processed_emails(email_account, uid)")
+            self.connection.commit()
+
+
+    def add_email(self, email_account, uid, notified):
         date_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        self.cursor.execute("INSERT INTO processed_emails (uid, notified, processed_date) VALUES (?, ?, ?)",
-                            (uid, notified, date_str))
+        self.cursor.execute("INSERT OR REPLACE INTO processed_emails (email_account, uid, notified, processed_date) VALUES (?, ?, ?, ?)",
+                            (email_account, uid, notified, date_str))
         self.connection.commit()
 
-    def is_email_notified(self, uid):
-        self.cursor.execute("SELECT * FROM processed_emails WHERE uid = ? AND notified = 1", (uid,))
+
+    def is_email_notified(self, email_account, uid):
+        self.cursor.execute("SELECT * FROM processed_emails WHERE email_account = ? AND uid = ? AND notified = 1", (email_account, uid))
         return bool(self.cursor.fetchone())
 
     def delete_old_emails(self, days=7):
@@ -131,8 +147,9 @@ class DatabaseHandler:
         self.connection.close()
 
 class EmailProcessor:
-    def __init__(self, mail):
+    def __init__(self, mail, email_account):
         self.mail = mail
+        self.email_account = email_account
         self.db_handler = DatabaseHandler()  # Create a new db_handler for each instance
 
     def fetch_unseen_emails(self):
@@ -146,7 +163,7 @@ class EmailProcessor:
         logging.info("Fetching the latest email...")
         for message in self.fetch_unseen_emails():
             uid = message.decode('utf-8')
-            if self.db_handler.is_email_notified(uid):
+            if self.db_handler.is_email_notified(self.email_account, uid):  # Added email_account here
                 logging.info(f"Email UID {uid} already processed and notified, skipping...")
                 continue
 
@@ -158,7 +175,7 @@ class EmailProcessor:
                     subject = email_message.get('Subject')
                     logging.info(f"Processing Email - UID: {uid}, Sender: {sender}, Subject: {subject}")
                     notifier.send_notification(email_message.get('From'), email_message.get('Subject'))
-                    self.db_handler.add_email(uid, 1)
+                    self.db_handler.add_email(self.email_account, uid, 1)
 
         # Delete entries older than 7 days
         self.db_handler.delete_old_emails()
@@ -201,7 +218,7 @@ class NTFYNotificationProvider(NotificationProvider):
                 print(f"An error occurred while sending notification to {ntfy_url}: {str(e)}")
                 logging.error(f"An error occurred while sending notification to {ntfy_url} via NTFY: {str(e)}")
             finally:
-                time.sleep(5)  # Ensure a delay between notifications
+                time.sleep(2)  # Ensure a delay between notifications
 
 
 
@@ -331,8 +348,9 @@ class IMAPHandler:
             logging.info(f"[{self.email_user}] IDLE mode stopped.")
 
     def process_emails(self):
-        processor = EmailProcessor(self.mail)
+        processor = EmailProcessor(self.mail, self.email_user) # Pass the email_user (account) to the processor
         processor.process()
+
 
 class MultiIMAPHandler:
     def __init__(self, accounts):
