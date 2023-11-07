@@ -1,8 +1,6 @@
 # NotiMail 📧
 
-**Version 0.12.1 is here, read the changelog for more information!**
-
-**Development is ongoing, and the project is in the early alpha stage - things may break!**
+**Version 0.13 is here, read the changelog for more information!**
 
 Stay connected without the constant drain on your battery. Introducing **NotiMail** - the future of server-side email notifications supporting multiple push providers and multiple email accounts!
 
@@ -18,11 +16,13 @@ Mobile devices often use IMAP IDLE, maintaining a persistent connection to ensur
 
 - **Leverages Multiple Push Providers for Alerts**: Rather than having your device always on alert, NotiMail sends notifications via multiple push providers, ensuring you're promptly informed.
 
+- **Expanded Notification Capabilities**: Version 0.13 introduces support for Apprise, allowing for an extensive array of notification services through a single interface.
+
 - **Database Integration**: NotiMail uses an SQLite3 database to store and manage processed email UIDs, preventing repeated processing.
 
 - **Built for Resilience**: With connectivity hiccups in mind, NotiMail ensures you're always the first to know.
 
-- **Multiple And Different Push providers supported**: You can use one or more of the supported Push providers - all support authentication, which currently include ntfy, Gotify, and Pushover.
+- **Multiple And Different Push providers supported**: You can use one or more of the supported Push providers - all support authentication, which now includes ntfy, Gotify, Pushover, and a wide range through Apprise.
 
 ## Benefits 🚀
 

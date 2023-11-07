@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 NotiMail
-Version: 0.12.1
+Version: 0.13
 Author: Stefano Marinelli <stefano@dragas.it>
 License: BSD 3-Clause License
 
@@ -27,6 +27,7 @@ Python Dependencies:
 - signal, sys: For handling script shutdown and signals.
 - threading: to deal with multiple inboxes
 - BytesParser from email.parser: For parsing raw email data.
+- apprise: for apprise notifications
 
 Configuration:
 The script reads configuration data from a file named config.ini. Ensure it is properly 
@@ -74,6 +75,7 @@ import sys
 import logging
 import argparse
 import threading
+import apprise
 from email import policy
 from email.parser import BytesParser
 
@@ -183,6 +185,27 @@ class EmailProcessor:
 class NotificationProvider:
     def send_notification(self, mail_from, mail_subject):
         raise NotImplementedError("Subclasses must implement this method")
+
+class AppriseNotificationProvider(NotificationProvider):
+    def __init__(self, apprise_config):
+        # Initialize the apprise object
+        self.apprise = apprise.Apprise()
+        # Add all the services by the configuration provided
+        for service_url in apprise_config:
+            self.apprise.add(service_url)
+
+    def send_notification(self, mail_from, mail_subject):
+        # Prepare the notification message
+        mail_subject = mail_subject if mail_subject is not None else "No Subject"
+        mail_from = mail_from if mail_from is not None else "Unknown Sender"
+        message = f"{mail_from}"
+
+        # Send the notification
+        if not self.apprise.notify(title=mail_subject, body=message):
+            # If notification fails, log the failure
+            logging.error(f"Failed to send notification via Apprise.")
+            print(f"Failed to send notification via Apprise.")
+
 
 class NTFYNotificationProvider(NotificationProvider):
     def __init__(self, ntfy_data):
@@ -426,6 +449,11 @@ def multi_account_main():
                 accounts.append(account)
 
     providers = []
+
+    if 'APPRISE' in config:
+        apprise_urls = config['APPRISE']['urls'].split(',')  # Assuming urls is a comma-separated list in the config
+        providers.append(AppriseNotificationProvider(apprise_urls))
+
 
     if 'NTFY' in config:
         ntfy_data = []

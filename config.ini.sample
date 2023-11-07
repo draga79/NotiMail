@@ -31,3 +31,6 @@ Host = mail.server.com
 #Url = https://gotify.example.com/message
 #Token = your_gotify_token
 
+#If your provider is one of the ones supported by APPRISE, uncomment the following lines and configure. If using APPRISE, also uncomment the [APPRISE] line
+#[APPRISE]
+#urls = pover://user@token, discord://webhook_id/webhook_token

@@ -1,3 +1,20 @@
+### Version 0.13
+
+#### New Features:
+
+-   **Apprise Notification Support**: Introduced the `AppriseNotificationProvider` to allow for notifications through a variety of services via the Apprise library.
+
+#### Changes:
+
+-   Added an import statement for the `apprise` library to the script to facilitate the new notification method.
+-   Updated the `multi_account_main` function to read Apprise configuration from `config.ini` and initialize the `AppriseNotificationProvider`.
+-   The notification dispatch process within the script now includes the capability to use Apprise, broadening the range of supported notification services.
+
+#### Upgrade Notes:
+
+-   To use Apprise, ensure that the `apprise` package is installed (`pip install apprise`).
+-   Update the `config.ini` file to include a new section `[APPRISE]` with the required service URLs for notifications.
+
 ### Version 0.12.1
 
 #### Changes:
