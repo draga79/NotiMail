@@ -67,15 +67,11 @@ Ensure you have Python installed on your machine. NotiMail is written in Python,
 
 If you've hosted `NotiMail` on a platform like GitHub, provide the link and the command. For this example, I'll use a placeholder link:
 
-bash
-
 `git clone https://github.com/draga79/NotiMail.git` 
 
 If you're not using version control, ensure users have a link to download the `.zip` or `.tar.gz` of the project and then extract it.
 
 **2. Navigate to the NotiMail Directory:**
-
-bash
 
 `cd NotiMail` 
 
@@ -83,23 +79,15 @@ bash
 
 A virtual environment ensures that the dependencies for the project don't interfere with your other Python projects or system libraries.
 
-bash
-
 `python -m venv notimail-env` 
 
 Activate the virtual environment:
 
 -   On macOS and Linux:
-    
-    bash
-    
 
 -   `source notimail-env/bin/activate` 
     
 -   On Windows:
-    
-    bash
-    
 
 -   `.\notimail-env\Scripts\activate` 
     
@@ -108,8 +96,6 @@ Activate the virtual environment:
 
 Install the necessary Python libraries using `pip`, for example:
 
-bash
-
 `pip install requests` 
 
 **5. Configure NotiMail:**
@@ -117,8 +103,6 @@ bash
 Open the `config.ini` file in a text editor. From version 0.9, you can configure multiple email accounts for monitoring by adding sections like `[EMAIL:account1]`, `[EMAIL:account2]`, etc. If you're upgrading from an earlier version, your old single `[EMAIL]` configuration is still supported. Also, update the configuration for one (or more) of the supported push providers.
 
 **6. Run NotiMail:**
-
-bash
 
 `python NotiMail.py` 
 
