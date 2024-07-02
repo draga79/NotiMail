@@ -35,7 +35,7 @@ configured before running the script.
 
 BSD 3-Clause License:
 
-Copyright (c) 2023, Stefano Marinelli
+Copyright (c) 2023-2024, Stefano Marinelli
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
