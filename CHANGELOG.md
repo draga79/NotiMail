@@ -1,3 +1,29 @@
+### Version 1.0
+
+#### New Features:
+
+-   **Log Rotation**: Added support for log rotation. You can now configure log rotation based on size or time. This helps in managing log file sizes and ensures that old log files are archived.
+-   **Thread-Safe Email Processing**: Improved the email processing to be thread-safe, ensuring that multiple email accounts can be processed simultaneously without conflicts.
+-   **Enhanced Configuration Validation**: Added a `validate_config` function to ensure required sections are present in the `config.ini` file before proceeding.
+-   **Improved Logging**: Introduced more robust logging mechanisms with options for size-based or time-based log rotation.
+
+#### Changes:
+
+-   **Logging Enhancements**:
+    -   Introduced `RotatingFileHandler` and `TimedRotatingFileHandler` for better log management.
+    -   Updated the logging configuration to use parameters from `config.ini` for log rotation.
+-   **Codebase**:
+    -   Refactored the `DatabaseHandler` class to use context management for better resource handling.
+    -   Added a `Lock` mechanism in the `MultiIMAPHandler` class to ensure thread-safe email processing.
+    -   Improved error handling and logging across the codebase to provide clearer insights and more robust operations.
+-   **Configuration (`config.ini`)**:
+    -   Introduced new configuration keys under `[GENERAL]`: `LogRotationType`, `LogRotationSize`, `LogRotationInterval`, and `LogBackupCount` for log rotation settings.
+
+#### Upgrade Notes:
+
+-   To use the new log rotation feature, update the `config.ini` file to include the new `[GENERAL]` configuration keys related to log rotation.
+-   Ensure that the `config.ini` file is properly validated using the new validation mechanism.
+
 ### Version 0.13
 
 #### New Features:

@@ -1,6 +1,13 @@
 [GENERAL]
 LogFileLocation = /var/log/notimail/notimail.log
 DataBaseLocation = /var/cache/notimail/processed_emails.db
+#Logorotation can be "size" or "time"
+LogRotationType = size
+#LogRotationSize - Only if size is selected - default is 10 MB
+LogRotationSize = 10485760
+#LogRotationInterval - Only if time is selected - in days
+LogRotationInterval = 7
+LogBackupCount = 5
 
 [EMAIL:account1]
 EmailUser = your@address.com

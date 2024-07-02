@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
 NotiMail
-Version: 0.13
+Version: 1.0
 Author: Stefano Marinelli <stefano@dragas.it>
 License: BSD 3-Clause License
 
-NotiMail is a script designed to monitor one or more email inbox(es) using the IMAP IDLE feature 
-and send notifications via HTTP POST requests when a new email arrives. This version includes 
-additional features to store processed email UIDs in a SQLite3 database and ensure they are not 
+NotiMail is a script designed to monitor one or more email inbox(es) using the IMAP IDLE feature
+and send notifications via HTTP POST requests when a new email arrives. This version includes
+additional features to store processed email UIDs in a SQLite3 database and ensure they are not
 processed repeatedly.
 
 The script uses:
@@ -30,7 +30,7 @@ Python Dependencies:
 - apprise: for apprise notifications
 
 Configuration:
-The script reads configuration data from a file named config.ini. Ensure it is properly 
+The script reads configuration data from a file named config.ini. Ensure it is properly
 configured before running the script.
 
 BSD 3-Clause License:
@@ -78,6 +78,8 @@ import threading
 import apprise
 from email import policy
 from email.parser import BytesParser
+from threading import Lock
+from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
 
 # Argument parsing to get the config file
 parser = argparse.ArgumentParser(description='NotiMail Notification Service.')
@@ -91,11 +93,36 @@ args = parser.parse_args()
 config = configparser.ConfigParser()
 config.read(args.config)
 
+def validate_config(config):
+    required_sections = ['GENERAL', 'EMAIL:account1']
+    for section in required_sections:
+        if section not in config:
+            raise ValueError(f"Missing required section: {section}")
+    # Add more validation as needed
+
+validate_config(config)
+
 # Logging setup using config (or default if not set)
 log_file_location = config.get('GENERAL', 'LogFileLocation', fallback='notimail.log')
-logging.basicConfig(filename=log_file_location,
-                    level=logging.INFO,
-                    format='%(asctime)s - %(threadName)s - %(levelname)s - %(message)s')
+log_rotation_type = config.get('GENERAL', 'LogRotationType', fallback='size')
+log_rotation_size = config.getint('GENERAL', 'LogRotationSize', fallback=10485760)  # 10MB
+log_rotation_interval = config.getint('GENERAL', 'LogRotationInterval', fallback=1)  # 1 day
+log_backup_count = config.getint('GENERAL', 'LogBackupCount', fallback=5)
+
+# Logger configuration
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+if log_rotation_type == 'size':
+    handler = RotatingFileHandler(log_file_location, maxBytes=log_rotation_size, backupCount=log_backup_count)
+elif log_rotation_type == 'time':
+    handler = TimedRotatingFileHandler(log_file_location, when='midnight', interval=log_rotation_interval, backupCount=log_backup_count)
+else:
+    raise ValueError(f"Invalid LogRotationType: {log_rotation_type}")
+
+formatter = logging.Formatter('%(asctime)s - %(threadName)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
 
 class DatabaseHandler:
     def __init__(self, db_name=None):
@@ -105,6 +132,12 @@ class DatabaseHandler:
         self.cursor = self.connection.cursor()
         self.create_table()
         self.update_schema_if_needed()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
 
     def create_table(self):
         self.cursor.execute('''
@@ -128,13 +161,11 @@ class DatabaseHandler:
             self.cursor.execute("CREATE UNIQUE INDEX idx_email_account_uid ON processed_emails(email_account, uid)")
             self.connection.commit()
 
-
     def add_email(self, email_account, uid, notified):
         date_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.cursor.execute("INSERT OR REPLACE INTO processed_emails (email_account, uid, notified, processed_date) VALUES (?, ?, ?, ?)",
                             (email_account, uid, notified, date_str))
         self.connection.commit()
-
 
     def is_email_notified(self, email_account, uid):
         self.cursor.execute("SELECT * FROM processed_emails WHERE email_account = ? AND uid = ? AND notified = 1", (email_account, uid))
@@ -152,7 +183,6 @@ class EmailProcessor:
     def __init__(self, mail, email_account):
         self.mail = mail
         self.email_account = email_account
-        self.db_handler = DatabaseHandler()  # Create a new db_handler for each instance
 
     def fetch_unseen_emails(self):
         status, messages = self.mail.uid('search', None, "UNSEEN")
@@ -163,24 +193,24 @@ class EmailProcessor:
 
     def process(self):
         logging.info("Fetching the latest email...")
-        for message in self.fetch_unseen_emails():
-            uid = message.decode('utf-8')
-            if self.db_handler.is_email_notified(self.email_account, uid):  # Added email_account here
-                logging.info(f"Email UID {uid} already processed and notified, skipping...")
-                continue
+        with DatabaseHandler() as db_handler:
+            for message in self.fetch_unseen_emails():
+                uid = message.decode('utf-8')
+                if db_handler.is_email_notified(self.email_account, uid):
+                    logging.info(f"Email UID {uid} already processed and notified, skipping...")
+                    continue
 
-            _, msg = self.mail.uid('fetch', message, '(BODY.PEEK[])')
-            for response_part in msg:
-                if isinstance(response_part, tuple):
-                    email_message = self.parse_email(response_part[1])
-                    sender = email_message.get('From')
-                    subject = email_message.get('Subject')
-                    logging.info(f"Processing Email - UID: {uid}, Sender: {sender}, Subject: {subject}")
-                    notifier.send_notification(email_message.get('From'), email_message.get('Subject'))
-                    self.db_handler.add_email(self.email_account, uid, 1)
+                _, msg = self.mail.uid('fetch', message, '(BODY.PEEK[])')
+                for response_part in msg:
+                    if isinstance(response_part, tuple):
+                        email_message = self.parse_email(response_part[1])
+                        sender = email_message.get('From')
+                        subject = email_message.get('Subject')
+                        logging.info(f"Processing Email - UID: {uid}, Sender: {sender}, Subject: {subject}")
+                        notifier.send_notification(email_message.get('From'), email_message.get('Subject'))
+                        db_handler.add_email(self.email_account, uid, 1)
 
-        # Delete entries older than 7 days
-        self.db_handler.delete_old_emails()
+            db_handler.delete_old_emails()
 
 class NotificationProvider:
     def send_notification(self, mail_from, mail_subject):
@@ -188,35 +218,25 @@ class NotificationProvider:
 
 class AppriseNotificationProvider(NotificationProvider):
     def __init__(self, apprise_config):
-        # Initialize the apprise object
         self.apprise = apprise.Apprise()
-        # Add all the services by the configuration provided
         for service_url in apprise_config:
             self.apprise.add(service_url)
 
     def send_notification(self, mail_from, mail_subject):
-        # Prepare the notification message
         mail_subject = mail_subject if mail_subject is not None else "No Subject"
         mail_from = mail_from if mail_from is not None else "Unknown Sender"
         message = f"{mail_from}"
 
-        # Send the notification
         if not self.apprise.notify(title=mail_subject, body=message):
-            # If notification fails, log the failure
             logging.error(f"Failed to send notification via Apprise.")
-            print(f"Failed to send notification via Apprise.")
-
 
 class NTFYNotificationProvider(NotificationProvider):
     def __init__(self, ntfy_data):
-        #self.ntfy_urls = ntfy_urls  # Expecting a list of URLs
-        self.ntfy_data = ntfy_data  # Expecting a list of (URL, Token) tuples
-    
+        self.ntfy_data = ntfy_data
+
     def send_notification(self, mail_from, mail_subject):
         mail_subject = mail_subject if mail_subject is not None else "No Subject"
         mail_from = mail_from if mail_from is not None else "Unknown Sender"
-
-        # Encode the strings in UTF-8
         encoded_from = mail_from.encode('utf-8')
         encoded_subject = mail_subject.encode('utf-8')
 
@@ -226,35 +246,25 @@ class NTFYNotificationProvider(NotificationProvider):
                 headers["Authorization"] = f"Bearer {token}"
 
             try:
-                response = requests.post(
-                    ntfy_url,
-                    data=encoded_from,
-                    headers=headers
-                )
+                response = requests.post(ntfy_url, data=encoded_from, headers=headers)
                 if response.status_code == 200:
-                    print(f"Notification sent successfully to {ntfy_url}!")
                     logging.info(f"Notification sent successfully to {ntfy_url} via ntfy")
                 else:
-                    print(f"Failed to send notification to {ntfy_url}. Status Code:", response.status_code)
                     logging.error(f"Failed to send notification to {ntfy_url} via NTFY. Status Code: {response.status_code}")
             except requests.RequestException as e:
-                print(f"An error occurred while sending notification to {ntfy_url}: {str(e)}")
                 logging.error(f"An error occurred while sending notification to {ntfy_url} via NTFY: {str(e)}")
             finally:
-                time.sleep(2)  # Ensure a delay between notifications
-
-
+                time.sleep(2)
 
 class PushoverNotificationProvider(NotificationProvider):
     def __init__(self, api_token, user_key):
         self.api_token = api_token
         self.user_key = user_key
         self.pushover_url = "https://api.pushover.net/1/messages.json"
-    
+
     def send_notification(self, mail_from, mail_subject):
         mail_subject = mail_subject if mail_subject is not None else "No Subject"
         mail_from = mail_from if mail_from is not None else "Unknown Sender"
-
         message = f"From: {mail_from}\nSubject: {mail_subject}"
 
         data = {
@@ -266,47 +276,37 @@ class PushoverNotificationProvider(NotificationProvider):
         try:
             response = requests.post(self.pushover_url, data=data)
             if response.status_code == 200:
-                print("Notification sent successfully via Pushover!")
                 logging.info(f"Notification sent successfully via Pushover")
             else:
-                print(f"Failed to send notification via Pushover. Status Code:", response.status_code)
-                logging.error(f"Failed to send notification to via Pushover. Status Code: {response.status_code}")
+                logging.error(f"Failed to send notification via Pushover. Status Code: {response.status_code}")
         except requests.RequestException as e:
-            print(f"An error occurred while sending notification via Pushover: {str(e)}")
             logging.error(f"An error occurred while sending notification via Pushover: {str(e)}")
 
 class GotifyNotificationProvider(NotificationProvider):
     def __init__(self, gotify_url, gotify_token):
         self.gotify_url = gotify_url
         self.gotify_token = gotify_token
-    
+
     def send_notification(self, mail_from, mail_subject):
         mail_subject = mail_subject if mail_subject is not None else "No Subject"
         mail_from = mail_from if mail_from is not None else "Unknown Sender"
-        
         message = f"From: {mail_from}\nSubject: {mail_subject}"
-        
-        # Include the token in the URL
         url_with_token = f"{self.gotify_url}?token={self.gotify_token}"
-        
+
         payload = {
             "title": mail_subject,
             "message": message,
-            "priority": 5  # Adjust priority as needed
+            "priority": 5
         }
-        
+
         try:
             response = requests.post(url_with_token, json=payload)
             if response.status_code == 200:
-                print("Notification sent successfully via Gotify!")
                 logging.info(f"Notification sent successfully via Gotify")
             else:
-                print(f"Failed to send notification via Gotify. Status Code: {response.status_code}")
                 logging.error(f"Failed to send notification via Gotify. Status Code: {response.status_code}")
         except requests.RequestException as e:
-            print(f"An error occurred while sending notification via Gotify: {str(e)}")
             logging.error(f"An error occurred while sending notification via Gotify: {str(e)}")
-
 
 class Notifier:
     def __init__(self, providers):
@@ -315,7 +315,6 @@ class Notifier:
     def send_notification(self, mail_from, mail_subject):
         for provider in self.providers:
             provider.send_notification(mail_from, mail_subject)
-
 
 class IMAPHandler:
     def __init__(self, host, email_user, email_pass, folder="inbox"):
@@ -331,12 +330,11 @@ class IMAPHandler:
             self.mail.login(self.email_user, self.email_pass)
             self.mail.select(self.folder)
         except imaplib.IMAP4.error as e:
-            print(f"Cannot connect: {str(e)}")
+            logging.error(f"Cannot connect: {str(e)}")
             notifier.send_notification("Script Error", f"Cannot connect: {str(e)}")
             raise
 
     def idle(self):
-        print("IDLE mode started. Waiting for new email...")
         logging.info(f"[{self.email_user} - {self.folder}] IDLE mode started. Waiting for new email...")
         try:
             tag = self.mail._new_tag().decode()
@@ -345,7 +343,6 @@ class IMAPHandler:
             while True:
                 line = self.mail.readline()
                 if line:
-                    print(line.decode('utf-8'))
                     if b'BYE' in line:
                         raise ConnectionAbortedError("Received BYE from server. Trying to reconnect...")
                     if b'EXISTS' in line:
@@ -353,80 +350,70 @@ class IMAPHandler:
             self.mail.send(b'DONE\r\n')
             self.mail.readline()
         except imaplib.IMAP4.abort as e:
-            print(f"Connection closed by server: {str(e)}")
             logging.error(f"[{self.email_user}] Connection closed by server: {str(e)}")
             notifier.send_notification("Script Error", f"Connection closed by server: {str(e)}")
             raise ConnectionAbortedError("Connection lost. Trying to reconnect...")
         except socket.timeout:
-            print("Socket timeout during IDLE, re-establishing connection...")
             logging.info(f"[{self.email_user}] Socket timeout during IDLE, re-establishing connection...")
             raise ConnectionAbortedError("Socket timeout. Trying to reconnect...")
         except Exception as e:
-            print(f"An error occurred: {str(e)}")
-            logging.info(f"[{self.email_user}] An error occurred: {str(e)}")
+            logging.error(f"[{self.email_user}] An error occurred: {str(e)}")
             notifier.send_notification("Script Error", f"An error occurred: {str(e)}")
             raise
         finally:
-            print("IDLE mode stopped.")
             logging.info(f"[{self.email_user}] IDLE mode stopped.")
 
     def process_emails(self):
-        processor = EmailProcessor(self.mail, self.email_user) # Pass the email_user (account) to the processor
+        processor = EmailProcessor(self.mail, self.email_user)
         processor.process()
-
 
 class MultiIMAPHandler:
     def __init__(self, accounts):
         self.accounts = accounts
         self.handlers = [IMAPHandler(account['Host'], account['EmailUser'], account['EmailPass'], account['Folder']) for account in accounts]
+        self.lock = Lock()
 
     def run(self):
         threads = []
         for handler in self.handlers:
-            #thread = threading.Thread(target=self.monitor_account, args=(handler,))
             thread = threading.Thread(target=self.monitor_account, args=(handler,), name=handler.email_user)
-            thread.daemon = True  # Set thread as daemon
+            thread.daemon = True
             threads.append(thread)
             thread.start()
 
         for thread in threads:
             thread.join()
 
-    @staticmethod
-    def monitor_account(handler):
-        print(f"Monitoring {handler.email_user} - Folder: {handler.folder}")
+    def monitor_account(self, handler):
         logging.info(f"Monitoring {handler.email_user} - Folder: {handler.folder}")
-        while True:  # Add a loop to keep retrying on connection loss
+        while True:
             try:
                 handler.connect()
                 while True:
                     handler.idle()
-                    handler.process_emails()
+                    with self.lock:
+                        handler.process_emails()
             except ConnectionAbortedError as e:
-                print(str(e))
-                time.sleep(30)  # Sleep for 30 seconds before retrying
+                logging.error(str(e))
+                time.sleep(30)
             except Exception as e:
-                print(f"An unexpected error occurred: {str(e)}")
                 logging.error(f"An unexpected error occurred: {str(e)}")
                 notifier.send_notification("Script Error", f"An unexpected error occurred: {str(e)}")
                 break
 
 def shutdown_handler(signum, frame):
-    print("Shutdown signal received. Cleaning up...")
     logging.info(f"Shutdown signal received. Cleaning up...")
     try:
         for handler in MultiIMAPHandler.handlers:
             handler.mail.logout()
     except:
         pass
-    print("Cleanup complete. Exiting.")
     logging.info(f"Cleanup complete. Exiting.")
     sys.exit(0)
 
 def multi_account_main():
     accounts = []
 
-    # Check for the old format [EMAIL] section
     if 'EMAIL' in config.sections():
         old_account = {
             'EmailUser': config['EMAIL']['EmailUser'],
@@ -435,7 +422,6 @@ def multi_account_main():
         }
         accounts.append(old_account)
 
-    # Check for new format [EMAIL:accountX]
     for section in config.sections():
         if section.startswith("EMAIL:"):
             folders = config[section].get('Folders', 'inbox').split(', ')
@@ -451,9 +437,8 @@ def multi_account_main():
     providers = []
 
     if 'APPRISE' in config:
-        apprise_urls = config['APPRISE']['urls'].split(',')  # Assuming urls is a comma-separated list in the config
+        apprise_urls = config['APPRISE']['urls'].split(',')
         providers.append(AppriseNotificationProvider(apprise_urls))
-
 
     if 'NTFY' in config:
         ntfy_data = []
@@ -461,7 +446,7 @@ def multi_account_main():
             if key.startswith("url"):
                 url = config['NTFY'][key]
                 token_key = "token" + key[3:]
-                token = config['NTFY'].get(token_key, None)  # Retrieve the token if it exists, else default to None
+                token = config['NTFY'].get(token_key, None)
                 ntfy_data.append((url, token))
         providers.append(NTFYNotificationProvider(ntfy_data))
 
@@ -483,13 +468,11 @@ def multi_account_main():
     signal.signal(signal.SIGTERM, shutdown_handler)
     signal.signal(signal.SIGINT, shutdown_handler)
 
-    print("Script started. Press Ctrl+C to stop it anytime.")
     logging.info(f"Script started. Press Ctrl+C to stop it anytime.")
-    
+
     multi_handler = MultiIMAPHandler(accounts)
     multi_handler.run()
 
-    print("Logging out and closing the connection...")
     logging.info(f"Logging out and closing the connection...")
     try:
         for handler in MultiIMAPHandler.handlers:
@@ -498,9 +481,6 @@ def multi_account_main():
         pass
 
 def print_config():
-    """
-    Function to print the configuration options from config.ini
-    """
     for section in config.sections():
         print(f"[{section}]")
         for key, value in config[section].items():
@@ -508,24 +488,19 @@ def print_config():
         print()
 
 def test_config():
-    """
-    Function to test the configuration options
-    """
-    # Test Email accounts
     for section in config.sections():
         if section.startswith("EMAIL:"):
-            print(f"Testing {section}...")
+            logging.info(f"Testing {section}...")
             handler = IMAPHandler(config[section]['Host'], config[section]['EmailUser'], config[section]['EmailPass'])
             try:
                 handler.connect()
-                print(f"Connection successful for {section}")
-                handler.mail.logout()  # Explicitly logging out after testing
+                logging.info(f"Connection successful for {section}")
+                handler.mail.logout()
             except Exception as e:
-                print(f"Connection failed for {section}. Reason: {str(e)}")
+                logging.error(f"Connection failed for {section}. Reason: {str(e)}")
 
-    # Testing NTFY Notification Provider
     if 'NTFY' in config:
-        print("Testing NTFY Notification Provider...")
+        logging.info("Testing NTFY Notification Provider...")
         ntfy_data = []
         for key in config['NTFY']:
             if key.startswith("url"):
@@ -536,50 +511,43 @@ def test_config():
         ntfy_provider = NTFYNotificationProvider(ntfy_data)
         try:
             ntfy_provider.send_notification("Test Sender", "Test Notification from NotiMail")
-            print("Test notification sent successfully via NTFY!")
+            logging.info("Test notification sent successfully via NTFY!")
         except Exception as e:
-            print(f"Failed to send test notification via NTFY. Reason: {str(e)}")
+            logging.error(f"Failed to send test notification via NTFY. Reason: {str(e)}")
 
-    # Testing Pushover Notification Provider
     if 'PUSHOVER' in config:
-        print("Testing Pushover Notification Provider...")
+        logging.info("Testing Pushover Notification Provider...")
         pushover_provider = PushoverNotificationProvider(config['PUSHOVER']['ApiToken'], config['PUSHOVER']['UserKey'])
         try:
             pushover_provider.send_notification("Test Sender", "Test Notification from NotiMail")
-            print("Test notification sent successfully via Pushover!")
+            logging.info("Test notification sent successfully via Pushover!")
         except Exception as e:
-            print(f"Failed to send test notification via Pushover. Reason: {str(e)}")
+            logging.error(f"Failed to send test notification via Pushover. Reason: {str(e)}")
 
-    # Testing Gotify Notification Provider
     if 'GOTIFY' in config:
-        print("Testing Gotify Notification Provider...")
+        logging.info("Testing Gotify Notification Provider...")
         gotify_provider = GotifyNotificationProvider(config['GOTIFY']['Url'], config['GOTIFY']['Token'])
         try:
             gotify_provider.send_notification("Test Sender", "Test Notification from NotiMail")
-            print("Test notification sent successfully via Gotify!")
+            logging.info("Test notification sent successfully via Gotify!")
         except Exception as e:
-            print(f"Failed to send test notification via Gotify. Reason: {str(e)}")
+            logging.error(f"Failed to send test notification via Gotify. Reason: {str(e)}")
 
-    print("Testing done!")
-
+    logging.info("Testing done!")
 
 def list_imap_folders():
-    """
-    Function to list all IMAP folders of the configured mailboxes
-    """
     for section in config.sections():
         if section.startswith("EMAIL:"):
-            print(f"Listing folders for {section}...")
+            logging.info(f"Listing folders for {section}...")
             handler = IMAPHandler(config[section]['Host'], config[section]['EmailUser'], config[section]['EmailPass'])
             try:
                 handler.connect()
                 typ, folders = handler.mail.list()
                 for folder in folders:
                     print(folder.decode())
-                handler.mail.logout()  # Explicitly logging out after listing folders
+                handler.mail.logout()
             except Exception as e:
-                print(f"Failed to list folders for {section}. Reason: {str(e)}")
-
+                logging.error(f"Failed to list folders for {section}. Reason: {str(e)}")
 
 if __name__ == "__main__":
     if args.print_config:
@@ -590,4 +558,3 @@ if __name__ == "__main__":
         list_imap_folders()
     else:
         multi_account_main()
-

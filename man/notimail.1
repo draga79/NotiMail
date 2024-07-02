@@ -1,15 +1,15 @@
 .\" Man page for NotiMail
-.TH MAN 1 "24 October 2023"
+.TH MAN 1 "2 July 2024"
 .SH NAME
 NotiMail \- Monitor email inbox(es) and send notifications upon new email arrivals using various providers.
 .SH SYNOPSIS
 .B notimail
 [\fB-c\fR \fICONFIG\fR]
-[\fB--check-config\fR]
+[\fB--print-config\fR]
 [\fB--test-config\fR]
 [\fB--list-folders\fR]
 .SH DESCRIPTION
-NotiMail is a script designed to monitor one or more email inboxes using the IMAP IDLE feature. It sends notifications when a new email arrives. The script can connect to multiple email servers and send notifications to different platforms, including NTFY, Pushover, and Gotify.
+NotiMail is a script designed to monitor one or more email inboxes using the IMAP IDLE feature. It sends notifications when a new email arrives. The script can connect to multiple email servers and send notifications to different platforms, including NTFY, Pushover, Gotify, and Apprise.
 .P
 Key features:
 .RS
@@ -22,7 +22,7 @@ Sends notifications containing the sender and subject of new emails.
 .IP "*"
 Maintains a SQLite database to ensure that emails are not processed repeatedly.
 .IP "*"
-Supports multiple notification providers: NTFY, Pushover, and Gotify.
+Supports multiple notification providers: NTFY, Pushover, Gotify, and Apprise.
 .IP "*"
 Provides command-line functionalities to validate, test, and list IMAP folders.
 .RE
@@ -31,11 +31,11 @@ Provides command-line functionalities to validate, test, and list IMAP folders.
 \fB-c\fR, \fB--config\fR \fICONFIG\fR
 Specify the path to the configuration file. Defaults to \fIconfig.ini\fR.
 .TP
-\fB--check-config\fR
-Check and print the configurations set in the `config.ini` file.
+\fB--print-config\fR
+Print the configurations set in the \fIconfig.ini\fR file.
 .TP
 \fB--test-config\fR
-Test if the configurations set in the `config.ini` file are working properly.
+Test if the configurations set in the \fIconfig.ini\fR file are working properly.
 .TP
 \fB--list-folders\fR
 List all the IMAP folders of the configured mailboxes.
@@ -48,6 +48,14 @@ Configuration data is read from a file named \fIconfig.ini\fR. Ensure it's corre
 Path to the log file.
 .IP DataBaseLocation:
 Path to the SQLite3 database for storing processed emails.
+.IP LogRotationType:
+Type of log rotation (\fIsize\fR or \fItime\fR).
+.IP LogRotationSize:
+Size threshold for log rotation (only used if \fILogRotationType\fR is \fIsize\fR).
+.IP LogRotationInterval:
+Time interval for log rotation in days (only used if \fILogRotationType\fR is \fItime\fR).
+.IP LogBackupCount:
+Number of backup log files to retain.
 .IP "[EMAIL:accountX]:"
 Defines an email account. Replace \fIaccountX\fR with a unique identifier for each email account.
 .IP EmailUser:
@@ -76,6 +84,10 @@ Configuration for the Gotify notification provider.
 The Gotify URL for sending messages.
 .IP Token:
 Your Gotify token.
+.IP "[APPRISE]:"
+Configuration for the Apprise notification provider.
+.IP urls:
+Comma-separated list of Apprise service URLs for sending notifications.
 .RE
 .SH DEPENDENCIES
 Python libraries:
@@ -104,6 +116,8 @@ argparse
 threading
 .IP "*"
 BytesParser from email.parser
+.IP "*"
+apprise
 .RE
 .SH EXAMPLES
 1. Running NotiMail with the default configuration file:
@@ -119,7 +133,7 @@ notimail \-c /path/to/custom_config.ini
 3. Checking the current configuration:
 .RS
 .IP ""
-notimail --check-config
+notimail --print-config
 .RE
 4. Testing the configuration settings:
 .RS
@@ -136,4 +150,4 @@ Stefano Marinelli <stefano@dragas.it>
 .SH LICENSE
 BSD 3-Clause License. See the source distribution for details.
 .SH SEE ALSO
-IMAP IDLE, SQLite3, NTFY, Pushover, Gotify.
+IMAP IDLE, SQLite3, NTFY, Pushover, Gotify, Apprise.
