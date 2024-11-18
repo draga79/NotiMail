@@ -94,10 +94,9 @@ config = configparser.ConfigParser()
 config.read(args.config)
 
 def validate_config(config):
-    required_sections = ['GENERAL', 'EMAIL:account1']
-    for section in required_sections:
-        if section not in config:
-            raise ValueError(f"Missing required section: {section}")
+    required_sections = ['GENERAL']
+    if not any(section.startswith('EMAIL') for section in config.sections()):
+        raise ValueError("At least one EMAIL section is required.")
     # Add more validation as needed
 
 validate_config(config)
@@ -180,9 +179,10 @@ class DatabaseHandler:
         self.connection.close()
 
 class EmailProcessor:
-    def __init__(self, mail, email_account):
+    def __init__(self, mail, email_account, notifier):
         self.mail = mail
         self.email_account = email_account
+        self.notifier = notifier
 
     def fetch_unseen_emails(self):
         status, messages = self.mail.uid('search', None, "UNSEEN")
@@ -207,7 +207,7 @@ class EmailProcessor:
                         sender = email_message.get('From')
                         subject = email_message.get('Subject')
                         logging.info(f"Processing Email - UID: {uid}, Sender: {sender}, Subject: {subject}")
-                        notifier.send_notification(email_message.get('From'), email_message.get('Subject'))
+                        self.notifier.send_notification(email_message.get('From'), email_message.get('Subject'))
                         db_handler.add_email(self.email_account, uid, 1)
 
             db_handler.delete_old_emails()
@@ -220,7 +220,7 @@ class AppriseNotificationProvider(NotificationProvider):
     def __init__(self, apprise_config):
         self.apprise = apprise.Apprise()
         for service_url in apprise_config:
-            self.apprise.add(service_url)
+            self.apprise.add(service_url.strip())
 
     def send_notification(self, mail_from, mail_subject):
         mail_subject = mail_subject if mail_subject is not None else "No Subject"
@@ -317,11 +317,12 @@ class Notifier:
             provider.send_notification(mail_from, mail_subject)
 
 class IMAPHandler:
-    def __init__(self, host, email_user, email_pass, folder="inbox"):
+    def __init__(self, host, email_user, email_pass, folder="inbox", notifier=None):
         self.host = host
         self.email_user = email_user
         self.email_pass = email_pass
         self.folder = folder
+        self.notifier = notifier
         self.mail = None
 
     def connect(self):
@@ -331,7 +332,8 @@ class IMAPHandler:
             self.mail.select(self.folder)
         except imaplib.IMAP4.error as e:
             logging.error(f"Cannot connect: {str(e)}")
-            notifier.send_notification("Script Error", f"Cannot connect: {str(e)}")
+            if self.notifier:
+                self.notifier.send_notification("Script Error", f"Cannot connect: {str(e)}")
             raise
 
     def idle(self):
@@ -351,26 +353,28 @@ class IMAPHandler:
             self.mail.readline()
         except imaplib.IMAP4.abort as e:
             logging.error(f"[{self.email_user}] Connection closed by server: {str(e)}")
-            notifier.send_notification("Script Error", f"Connection closed by server: {str(e)}")
+            if self.notifier:
+                self.notifier.send_notification("Script Error", f"Connection closed by server: {str(e)}")
             raise ConnectionAbortedError("Connection lost. Trying to reconnect...")
         except socket.timeout:
             logging.info(f"[{self.email_user}] Socket timeout during IDLE, re-establishing connection...")
             raise ConnectionAbortedError("Socket timeout. Trying to reconnect...")
         except Exception as e:
             logging.error(f"[{self.email_user}] An error occurred: {str(e)}")
-            notifier.send_notification("Script Error", f"An error occurred: {str(e)}")
+            if self.notifier:
+                self.notifier.send_notification("Script Error", f"An error occurred: {str(e)}")
             raise
         finally:
             logging.info(f"[{self.email_user}] IDLE mode stopped.")
 
     def process_emails(self):
-        processor = EmailProcessor(self.mail, self.email_user)
+        processor = EmailProcessor(self.mail, self.email_user, self.notifier)
         processor.process()
 
 class MultiIMAPHandler:
     def __init__(self, accounts):
         self.accounts = accounts
-        self.handlers = [IMAPHandler(account['Host'], account['EmailUser'], account['EmailPass'], account['Folder']) for account in accounts]
+        self.handlers = [IMAPHandler(account['Host'], account['EmailUser'], account['EmailPass'], account['Folder'], account['Notifier']) for account in accounts]
         self.lock = Lock()
 
     def run(self):
@@ -398,84 +402,125 @@ class MultiIMAPHandler:
                 time.sleep(30)
             except Exception as e:
                 logging.error(f"An unexpected error occurred: {str(e)}")
-                notifier.send_notification("Script Error", f"An unexpected error occurred: {str(e)}")
+                if handler.notifier:
+                    handler.notifier.send_notification("Script Error", f"An unexpected error occurred: {str(e)}")
                 break
 
 def shutdown_handler(signum, frame):
     logging.info(f"Shutdown signal received. Cleaning up...")
     try:
-        for handler in MultiIMAPHandler.handlers:
+        for handler in multi_handler.handlers:
             handler.mail.logout()
     except:
         pass
     logging.info(f"Cleanup complete. Exiting.")
     sys.exit(0)
 
+def parse_notification_providers(account_name=None):
+    providers = []
+
+    # Determine which sections to read based on account_name
+    if account_name:
+        # Only include sections specific to this account
+        sections_to_check = [section for section in config.sections() if section.endswith(f":{account_name}")]
+    else:
+        # Exclude account-specific sections
+        sections_to_check = [section for section in config.sections() if ':' not in section]
+
+    # NTFY providers
+    ntfy_sections = [s for s in sections_to_check if s.startswith('NTFY')]
+    ntfy_data = []
+    for section in ntfy_sections:
+        for key in config[section]:
+            if key.lower().startswith("url"):
+                url = config[section][key]
+                index = key[3:]  # e.g., '1'
+                token_key = f"Token{index}"
+                token = config[section].get(token_key, None)
+                ntfy_data.append((url, token))
+    if ntfy_data:
+        providers.append(NTFYNotificationProvider(ntfy_data))
+
+    # Pushover provider
+    pushover_sections = [s for s in sections_to_check if s.startswith('PUSHOVER')]
+    for section in pushover_sections:
+        if 'ApiToken' in config[section] and 'UserKey' in config[section]:
+            api_token = config[section]['ApiToken']
+            user_key = config[section]['UserKey']
+            providers.append(PushoverNotificationProvider(api_token, user_key))
+            break  # Assuming only one Pushover provider per account or globally
+
+    # Gotify provider
+    gotify_sections = [s for s in sections_to_check if s.startswith('GOTIFY')]
+    for section in gotify_sections:
+        if 'Url' in config[section] and 'Token' in config[section]:
+            gotify_url = config[section]['Url']
+            gotify_token = config[section]['Token']
+            providers.append(GotifyNotificationProvider(gotify_url, gotify_token))
+            break
+
+    # Apprise providers
+    apprise_sections = [s for s in sections_to_check if s.startswith('APPRISE')]
+    for section in apprise_sections:
+        if 'urls' in config[section]:
+            apprise_urls = config[section]['urls'].split(',')
+            providers.append(AppriseNotificationProvider(apprise_urls))
+            break
+
+    return providers
+
 def multi_account_main():
     accounts = []
 
-    if 'EMAIL' in config.sections():
-        old_account = {
-            'EmailUser': config['EMAIL']['EmailUser'],
-            'EmailPass': config['EMAIL']['EmailPass'],
-            'Host': config['EMAIL']['Host']
-        }
-        accounts.append(old_account)
+    # Parse global notification providers
+    global_providers = parse_notification_providers()
+    if global_providers:
+        global_notifier = Notifier(global_providers)
+    else:
+        global_notifier = None
 
     for section in config.sections():
         if section.startswith("EMAIL:"):
+            account_name = section.split(":", 1)[1]
             folders = config[section].get('Folders', 'inbox').split(', ')
             for folder in folders:
                 account = {
                     'EmailUser': config[section]['EmailUser'],
                     'EmailPass': config[section]['EmailPass'],
                     'Host': config[section]['Host'],
-                    'Folder': folder
+                    'Folder': folder,
+                    'Notifier': None
                 }
+                # Parse notification providers for this account
+                account_providers = parse_notification_providers(account_name)
+                if account_providers:
+                    account['Notifier'] = Notifier(account_providers)
+                else:
+                    # Use global notifier
+                    if global_notifier:
+                        account['Notifier'] = global_notifier
+                    else:
+                        # Neither account-specific nor global notifier is available
+                        logging.error(f"No notification providers specified for account {section} and no global notification providers are available.")
+                        raise ValueError(f"No notification providers specified for account {section} and no global notification providers are available.")
                 accounts.append(account)
 
-    providers = []
-
-    if 'APPRISE' in config:
-        apprise_urls = config['APPRISE']['urls'].split(',')
-        providers.append(AppriseNotificationProvider(apprise_urls))
-
-    if 'NTFY' in config:
-        ntfy_data = []
-        for key in config['NTFY']:
-            if key.startswith("url"):
-                url = config['NTFY'][key]
-                token_key = "token" + key[3:]
-                token = config['NTFY'].get(token_key, None)
-                ntfy_data.append((url, token))
-        providers.append(NTFYNotificationProvider(ntfy_data))
-
-    if 'PUSHOVER' in config:
-        api_token = config['PUSHOVER']['ApiToken']
-        user_key = config['PUSHOVER']['UserKey']
-        providers.append(PushoverNotificationProvider(api_token, user_key))
-
-    if 'GOTIFY' in config:
-        gotify_url = config['GOTIFY']['Url']
-        gotify_token = config['GOTIFY']['Token']
-        providers.append(GotifyNotificationProvider(gotify_url, gotify_token))
-
-    global notifier
-    notifier = Notifier(providers)
-
+    # Socket timeout
     socket.setdefaulttimeout(480)
 
+    # Signal handlers for graceful shutdown
     signal.signal(signal.SIGTERM, shutdown_handler)
     signal.signal(signal.SIGINT, shutdown_handler)
 
     logging.info(f"Script started. Press Ctrl+C to stop it anytime.")
 
+    global multi_handler
     multi_handler = MultiIMAPHandler(accounts)
     multi_handler.run()
 
     logging.info(f"Logging out and closing the connection...")
     try:
-        for handler in MultiIMAPHandler.handlers:
+        for handler in multi_handler.handlers:
             handler.mail.logout()
     except:
         pass
@@ -488,8 +533,23 @@ def print_config():
         print()
 
 def test_config():
+    # Test global notification providers
+    logging.info("Testing global notification providers...")
+    global_providers = parse_notification_providers()
+    if global_providers:
+        global_notifier = Notifier(global_providers)
+        try:
+            global_notifier.send_notification("Test Sender", "Test Notification from NotiMail")
+            logging.info("Test notification sent successfully via global notification providers!")
+        except Exception as e:
+            logging.error(f"Failed to send test notification via global providers. Reason: {str(e)}")
+    else:
+        logging.info("No global notification providers configured.")
+
+    # Test per-account configurations
     for section in config.sections():
         if section.startswith("EMAIL:"):
+            account_name = section.split(":", 1)[1]
             logging.info(f"Testing {section}...")
             handler = IMAPHandler(config[section]['Host'], config[section]['EmailUser'], config[section]['EmailPass'])
             try:
@@ -499,39 +559,17 @@ def test_config():
             except Exception as e:
                 logging.error(f"Connection failed for {section}. Reason: {str(e)}")
 
-    if 'NTFY' in config:
-        logging.info("Testing NTFY Notification Provider...")
-        ntfy_data = []
-        for key in config['NTFY']:
-            if key.startswith("url"):
-                url = config['NTFY'][key]
-                token_key = "token" + key[3:]
-                token = config['NTFY'].get(token_key, None)
-                ntfy_data.append((url, token))
-        ntfy_provider = NTFYNotificationProvider(ntfy_data)
-        try:
-            ntfy_provider.send_notification("Test Sender", "Test Notification from NotiMail")
-            logging.info("Test notification sent successfully via NTFY!")
-        except Exception as e:
-            logging.error(f"Failed to send test notification via NTFY. Reason: {str(e)}")
-
-    if 'PUSHOVER' in config:
-        logging.info("Testing Pushover Notification Provider...")
-        pushover_provider = PushoverNotificationProvider(config['PUSHOVER']['ApiToken'], config['PUSHOVER']['UserKey'])
-        try:
-            pushover_provider.send_notification("Test Sender", "Test Notification from NotiMail")
-            logging.info("Test notification sent successfully via Pushover!")
-        except Exception as e:
-            logging.error(f"Failed to send test notification via Pushover. Reason: {str(e)}")
-
-    if 'GOTIFY' in config:
-        logging.info("Testing Gotify Notification Provider...")
-        gotify_provider = GotifyNotificationProvider(config['GOTIFY']['Url'], config['GOTIFY']['Token'])
-        try:
-            gotify_provider.send_notification("Test Sender", "Test Notification from NotiMail")
-            logging.info("Test notification sent successfully via Gotify!")
-        except Exception as e:
-            logging.error(f"Failed to send test notification via Gotify. Reason: {str(e)}")
+            # Test account-specific notification providers
+            account_providers = parse_notification_providers(account_name)
+            if account_providers:
+                account_notifier = Notifier(account_providers)
+                try:
+                    account_notifier.send_notification("Test Sender", f"Test Notification from NotiMail - {section}")
+                    logging.info(f"Test notification sent successfully via account-specific providers for {section}!")
+                except Exception as e:
+                    logging.error(f"Failed to send test notification via account-specific providers for {section}. Reason: {str(e)}")
+            else:
+                logging.info(f"No account-specific notification providers configured for {section}.")
 
     logging.info("Testing done!")
 
@@ -558,3 +596,4 @@ if __name__ == "__main__":
         list_imap_folders()
     else:
         multi_account_main()
+

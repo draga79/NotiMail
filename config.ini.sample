@@ -1,7 +1,7 @@
 [GENERAL]
 LogFileLocation = /var/log/notimail/notimail.log
 DataBaseLocation = /var/cache/notimail/processed_emails.db
-#Logorotation can be "size" or "time"
+#LogRotationType can be "size" or "time"
 LogRotationType = size
 #LogRotationSize - Only if size is selected - default is 10 MB
 LogRotationSize = 10485760
@@ -15,29 +15,64 @@ EmailPass = YourPassword
 Host = mail.server.com
 #Folders = inbox, sent
 
-#[EMAIL:account2]
-#EmailUser = your@address.com
-#EmailPass = YourPassword
-#Host = mail.server.com
-#Folders = inbox, sent
+# Uncomment and configure the following sections for account-specific notification providers
 
-#If your provider is NTFY, uncomment the following lines and configure. If using NTFY, also uncomment the [NTFY] line
-#[NTFY]
+#[NTFY:account1]
 #Url1 = https://ntfy.sh/TOPIC1
 #Token1 = Optional token to send notifications to protected topics
 #Url2 = https://ntfy.sh/TOPIC2
 #Token2 = Optional token to send notifications to protected topics
 
-#If your provider is PUSHOVER, uncomment the following lines and configure. If using PUSHOVER, also uncomment the [PUSHOVER] line
-#[PUSHOVER]
+#[PUSHOVER:account1]
 #ApiToken = YOUR_PUSHOVER_API_TOKEN
 #UserKey = YOUR_PUSHOVER_USER_KEY
 
-#If your provider is GOTIFY, uncomment the following lines and configure. If using GOTIFY, also uncomment the [GOTIFY] line
-#[GOTIFY]
+#[GOTIFY:account1]
 #Url = https://gotify.example.com/message
 #Token = your_gotify_token
 
-#If your provider is one of the ones supported by APPRISE, uncomment the following lines and configure. If using APPRISE, also uncomment the [APPRISE] line
-#[APPRISE]
+#[APPRISE:account1]
 #urls = pover://user@token, discord://webhook_id/webhook_token
+
+[EMAIL:account2]
+EmailUser = your@address.com
+EmailPass = YourPassword
+Host = mail.server.com
+#Folders = inbox, sent
+
+# Uncomment and configure the following sections for account-specific notification providers
+
+#[NTFY:account2]
+#Url1 = https://ntfy.sh/TOPIC3
+#Token1 = Optional token
+#Url2 = https://ntfy.sh/TOPIC4
+#Token2 = Optional token
+
+#[PUSHOVER:account2]
+#ApiToken = YOUR_PUSHOVER_API_TOKEN
+#UserKey = YOUR_PUSHOVER_USER_KEY
+
+#[GOTIFY:account2]
+#Url = https://gotify.example.com/message
+#Token = your_gotify_token
+
+#[APPRISE:account2]
+#urls = pover://user@token, discord://webhook_id/webhook_token
+
+# Global notification providers
+# If no account-specific notification providers are defined, these will be used
+
+[NTFY]
+Url1 = https://ntfy.sh/global_topic
+Token1 = Optional global token
+
+[PUSHOVER]
+ApiToken = YOUR_GLOBAL_PUSHOVER_API_TOKEN
+UserKey = YOUR_GLOBAL_PUSHOVER_USER_KEY
+
+[GOTIFY]
+Url = https://gotify.example.com/message
+Token = your_global_gotify_token
+
+[APPRISE]
+urls = pover://user@token, discord://webhook_id/webhook_token

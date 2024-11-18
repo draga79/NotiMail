@@ -1,3 +1,64 @@
+### Version 1.1
+
+#### New Features:
+
+-   **Per-Account Notification Providers**:
+    
+    -   Each email account can now have its own set of notification providers (Apprise, NTFY, Pushover, Gotify) configured separately from the global settings. This adds flexibility for account-specific notifications.
+    -   Added a `parse_notification_providers()` function to handle both global and account-specific notification setups.
+
+-   **Dynamic Notification Provider Configuration**:
+    
+    -   Ability to define notification providers globally or per account. If an account lacks its own configuration, it falls back to the global providers.
+    -   Enhanced handling of configuration sections in `config.ini`, allowing for custom notifications per account.
+
+-   **Refactoring of the `IMAPHandler` Class**:
+    
+    -   Now supports a `notifier` parameter to send notifications in case of errors or new messages, specific to the monitored account.
+
+#### Enhancements:
+
+-   **Configuration Validation**:
+    
+    -   Simplified validation to ensure at least one section starting with `EMAIL` exists, supporting multiple accounts seamlessly.
+-   **Improved Logging & Error Handling**:
+    
+    -   Enhanced error notifications for each account. If a connection error occurs during idle, a notification is sent via the account-specific `notifier`.
+    -   Increased granularity in notifications and logs to track specific connection errors and timeouts.
+-   **Extended Support for NTFY Notifications**:
+    
+    -   Improved support for NTFY, allowing optional authentication tokens for each configured URL.
+    -   Streamlined configuration handling for NTFY, Pushover, and Gotify to support multiple notification services.
+-   **Thread-Safe Email Processing**:
+    
+    -   Optimized the use of `Lock` within the `MultiIMAPHandler` class to ensure thread-safe email processing without conflicts.
+
+#### Changes:
+
+-   **Configuration (`config.ini`)**:
+    
+    -   Added support for account-specific notifications (`EMAIL:account` sections).
+    -   `[APPRISE]`, `[NTFY]`, `[PUSHOVER]`, and `[GOTIFY]` sections can now be defined globally or for individual accounts.
+-   **Improved `test_config()` Function**:
+    
+    -   Now tests both global and account-specific providers to ensure all configurations are correctly set up before starting the service.
+-   **Enhanced `multi_account_main()` Function**:
+    
+    -   Improved handling of multiple accounts with account-specific notifications. Accounts without dedicated providers will use the global notifier if available.
+
+#### Bug Fixes
+
+-   **IMAP Connection Stability**:
+    -   Fixed an issue that caused premature disconnections from the `IDLE` mode under certain network conditions.
+
+#### Upgrade Notes:
+
+-   **Configuration**:
+    
+    -   Update your `config.ini` to include new sections for account-specific notification providers. See the new config.ini.sample for reference.
+    -   Existing configurations will continue to work, but adding the new sections is recommended to take full advantage of the latest features.
+
+
 ### Version 1.0
 
 #### New Features:
