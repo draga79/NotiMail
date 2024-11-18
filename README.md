@@ -1,6 +1,6 @@
 # NotiMail 📧
 
-**Version 1.0 is here, read the changelog for more information!**
+**Version 1.1 is here, read the changelog for more information!**
 
 Stay connected without the constant drain on your battery. Introducing **NotiMail** - the future of server-side email notifications supporting multiple push providers and multiple email accounts!
 
