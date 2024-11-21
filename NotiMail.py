@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 NotiMail
-Version: 1.1
+Version: 2.0
 Author: Stefano Marinelli <stefano@dragas.it>
 License: BSD 3-Clause License
 
@@ -62,6 +62,8 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 OF SUCH DAMAGE.
 """
 
+#!/usr/bin/env python3
+
 import imaplib
 import email
 import requests
@@ -75,11 +77,33 @@ import sys
 import logging
 import argparse
 import threading
-import apprise
+import os
 from email import policy
 from email.parser import BytesParser
 from threading import Lock
 from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
+
+# Conditional import of Apprise
+try:
+    import apprise
+    apprise_available = True
+except ImportError:
+    apprise_available = False
+
+# Conditional import of Flask
+try:
+    from flask import Flask, jsonify, request
+    flask_available = True
+except ImportError:
+    flask_available = False
+
+# Conditional import of Prometheus client
+try:
+    from prometheus_client import start_http_server, Counter, Histogram
+    from prometheus_client import Gauge, Summary
+    prometheus_available = True
+except ImportError:
+    prometheus_available = False
 
 # Argument parsing to get the config file
 parser = argparse.ArgumentParser(description='NotiMail Notification Service.')
@@ -122,6 +146,125 @@ else:
 formatter = logging.Formatter('%(asctime)s - %(threadName)s - %(levelname)s - %(message)s')
 handler.setFormatter(formatter)
 logger.addHandler(handler)
+
+# Logging module availability
+logging.info("Module availability:")
+logging.info(f" - Apprise available: {apprise_available}")
+logging.info(f" - Flask available: {flask_available}")
+logging.info(f" - Prometheus client available: {prometheus_available}")
+
+# Start Prometheus metrics server if available and configured
+prometheus_host = config.get('GENERAL', 'PrometheusHost', fallback=None)
+prometheus_port = config.getint('GENERAL', 'PrometheusPort', fallback=None)
+
+if prometheus_available and prometheus_host and prometheus_port:
+    try:
+        start_http_server(prometheus_port, addr=prometheus_host)
+        logging.info(f"Prometheus metrics server started on {prometheus_host}:{prometheus_port}")
+        # Define Prometheus metrics
+        EMAILS_PROCESSED = Counter('emails_processed_total', 'Total number of emails processed')
+        NOTIFICATIONS_SENT = Counter('notifications_sent_total', 'Total number of notifications sent')
+        PROCESSING_TIME = Histogram('email_processing_seconds', 'Time spent processing emails')
+        ERRORS = Counter('errors_total', 'Total number of errors encountered')
+    except Exception as e:
+        logging.error(f"Failed to start Prometheus metrics server: {str(e)}")
+        prometheus_available = False
+else:
+    if not prometheus_available:
+        logging.info("Prometheus client library is not available. Metrics will not be exposed.")
+    else:
+        logging.info("PrometheusHost or PrometheusPort not specified. Metrics will not be exposed.")
+    # Dummy metrics when Prometheus is not available
+    class DummyMetric:
+        def inc(self, amount=1):
+            pass
+        def time(self):
+            class DummyTimer:
+                def __enter__(self):
+                    pass
+                def __exit__(self, exc_type, exc_val, exc_tb):
+                    pass
+            return DummyTimer()
+
+    EMAILS_PROCESSED = NOTIFICATIONS_SENT = ERRORS = DummyMetric()
+    PROCESSING_TIME = DummyMetric()
+
+# Flask app for the web interface
+flask_host = config.get('GENERAL', 'FlaskHost', fallback=None)
+flask_port = config.getint('GENERAL', 'FlaskPort', fallback=None)
+
+if flask_available and flask_host and flask_port:
+    app = Flask(__name__)
+
+    @app.route('/status')
+    def status():
+        api_key = request.args.get('api_key')
+        configured_api_key = config.get('GENERAL', 'APIKey', fallback=None)
+
+        if api_key == configured_api_key and api_key is not None:
+            # Return detailed status
+            status_info = {
+                'accounts': []
+            }
+            for handler in multi_handler.handlers:
+                account_status = {
+                    'email_user': handler.email_user,
+                    'folder': handler.folder,
+                    'connected': handler.mail is not None,
+                    'last_check': handler.last_check.strftime("%Y-%m-%d %H:%M:%S") if handler.last_check else None
+                }
+                status_info['accounts'].append(account_status)
+            return jsonify(status_info)
+        else:
+            # Return simple status
+            all_connected = all(handler.mail is not None for handler in multi_handler.handlers)
+            if all_connected:
+                return jsonify({'status': 'OK'}), 200
+            else:
+                return jsonify({'status': 'ERROR'}), 500
+
+    @app.route('/logs')
+    def logs():
+        api_key = request.args.get('api_key')
+        configured_api_key = config.get('GENERAL', 'APIKey', fallback=None)
+
+        if api_key == configured_api_key and api_key is not None:
+            log_file_location = config.get('GENERAL', 'LogFileLocation', fallback='notimail.log')
+            try:
+                with open(log_file_location, 'r') as f:
+                    logs = f.readlines()
+                    # Return the last 100 lines
+                    last_n_lines = logs[-100:]
+                return ''.join(last_n_lines), 200, {'Content-Type': 'text/plain; charset=utf-8'}
+            except Exception as e:
+                return f"Failed to read log file: {str(e)}", 500
+        else:
+            return "Unauthorized", 401
+
+    @app.route('/config', methods=['GET'])
+    def get_config():
+        api_key = request.args.get('api_key')
+        configured_api_key = config.get('GENERAL', 'APIKey', fallback=None)
+
+        if api_key == configured_api_key and api_key is not None:
+            config_dict = {}
+            sensitive_keys = ['emailpass', 'apitoken', 'userkey', 'token', 'urls', 'emailuser']
+            for section in config.sections():
+                config_dict[section] = {}
+                for key, value in config[section].items():
+                    if key.lower() in sensitive_keys:
+                        config_dict[section][key] = 'REDACTED'
+                    else:
+                        config_dict[section][key] = value
+            return jsonify(config_dict)
+        else:
+            return "Unauthorized", 401
+else:
+    if not flask_available:
+        logging.info("Flask is not available. Web interface is disabled.")
+    else:
+        logging.info("FlaskHost or FlaskPort not specified. Web interface will not be started.")
+    app = None
 
 class DatabaseHandler:
     def __init__(self, db_name=None):
@@ -203,12 +346,19 @@ class EmailProcessor:
                 _, msg = self.mail.uid('fetch', message, '(BODY.PEEK[])')
                 for response_part in msg:
                     if isinstance(response_part, tuple):
-                        email_message = self.parse_email(response_part[1])
-                        sender = email_message.get('From')
-                        subject = email_message.get('Subject')
-                        logging.info(f"Processing Email - UID: {uid}, Sender: {sender}, Subject: {subject}")
-                        self.notifier.send_notification(email_message.get('From'), email_message.get('Subject'))
-                        db_handler.add_email(self.email_account, uid, 1)
+                        with PROCESSING_TIME.time():
+                            email_message = self.parse_email(response_part[1])
+                            sender = email_message.get('From')
+                            subject = email_message.get('Subject')
+                            logging.info(f"Processing Email - UID: {uid}, Sender: {sender}, Subject: {subject}")
+                            try:
+                                self.notifier.send_notification(sender, subject)
+                                NOTIFICATIONS_SENT.inc()
+                            except Exception as e:
+                                logging.error(f"Failed to send notification: {str(e)}")
+                                ERRORS.inc()
+                            db_handler.add_email(self.email_account, uid, 1)
+                            EMAILS_PROCESSED.inc()
 
             db_handler.delete_old_emails()
 
@@ -216,19 +366,22 @@ class NotificationProvider:
     def send_notification(self, mail_from, mail_subject):
         raise NotImplementedError("Subclasses must implement this method")
 
-class AppriseNotificationProvider(NotificationProvider):
-    def __init__(self, apprise_config):
-        self.apprise = apprise.Apprise()
-        for service_url in apprise_config:
-            self.apprise.add(service_url.strip())
+if apprise_available:
+    class AppriseNotificationProvider(NotificationProvider):
+        def __init__(self, apprise_config):
+            self.apprise = apprise.Apprise()
+            for service_url in apprise_config:
+                self.apprise.add(service_url.strip())
 
-    def send_notification(self, mail_from, mail_subject):
-        mail_subject = mail_subject if mail_subject is not None else "No Subject"
-        mail_from = mail_from if mail_from is not None else "Unknown Sender"
-        message = f"{mail_from}"
+        def send_notification(self, mail_from, mail_subject):
+            mail_subject = mail_subject if mail_subject is not None else "No Subject"
+            mail_from = mail_from if mail_from is not None else "Unknown Sender"
+            message = f"{mail_from}"
 
-        if not self.apprise.notify(title=mail_subject, body=message):
-            logging.error(f"Failed to send notification via Apprise.")
+            if not self.apprise.notify(title=mail_subject, body=message):
+                logging.error(f"Failed to send notification via Apprise.")
+else:
+    pass  # Apprise is not available; skip defining the provider
 
 class NTFYNotificationProvider(NotificationProvider):
     def __init__(self, ntfy_data):
@@ -251,8 +404,10 @@ class NTFYNotificationProvider(NotificationProvider):
                     logging.info(f"Notification sent successfully to {ntfy_url} via ntfy")
                 else:
                     logging.error(f"Failed to send notification to {ntfy_url} via NTFY. Status Code: {response.status_code}")
+                    ERRORS.inc()
             except requests.RequestException as e:
                 logging.error(f"An error occurred while sending notification to {ntfy_url} via NTFY: {str(e)}")
+                ERRORS.inc()
             finally:
                 time.sleep(2)
 
@@ -279,8 +434,10 @@ class PushoverNotificationProvider(NotificationProvider):
                 logging.info(f"Notification sent successfully via Pushover")
             else:
                 logging.error(f"Failed to send notification via Pushover. Status Code: {response.status_code}")
+                ERRORS.inc()
         except requests.RequestException as e:
             logging.error(f"An error occurred while sending notification via Pushover: {str(e)}")
+            ERRORS.inc()
 
 class GotifyNotificationProvider(NotificationProvider):
     def __init__(self, gotify_url, gotify_token):
@@ -305,8 +462,10 @@ class GotifyNotificationProvider(NotificationProvider):
                 logging.info(f"Notification sent successfully via Gotify")
             else:
                 logging.error(f"Failed to send notification via Gotify. Status Code: {response.status_code}")
+                ERRORS.inc()
         except requests.RequestException as e:
             logging.error(f"An error occurred while sending notification via Gotify: {str(e)}")
+            ERRORS.inc()
 
 class Notifier:
     def __init__(self, providers):
@@ -324,6 +483,7 @@ class IMAPHandler:
         self.folder = folder
         self.notifier = notifier
         self.mail = None
+        self.last_check = None
 
     def connect(self):
         try:
@@ -366,6 +526,7 @@ class IMAPHandler:
             raise
         finally:
             logging.info(f"[{self.email_user}] IDLE mode stopped.")
+            self.last_check = datetime.datetime.now()
 
     def process_emails(self):
         processor = EmailProcessor(self.mail, self.email_user, self.notifier)
@@ -402,6 +563,7 @@ class MultiIMAPHandler:
                 time.sleep(30)
             except Exception as e:
                 logging.error(f"An unexpected error occurred: {str(e)}")
+                ERRORS.inc()
                 if handler.notifier:
                     handler.notifier.send_notification("Script Error", f"An unexpected error occurred: {str(e)}")
                 break
@@ -415,6 +577,16 @@ def shutdown_handler(signum, frame):
         pass
     logging.info(f"Cleanup complete. Exiting.")
     sys.exit(0)
+
+def reload_config_handler(signum, frame):
+    logging.info("Received SIGHUP signal. Reloading configuration...")
+    reload_configuration()
+
+def reload_configuration():
+    global config
+    config.read(args.config)
+    logging.info("Configuration reloaded.")
+    # Implement logic to update handlers and notifiers if necessary
 
 def parse_notification_providers(account_name=None):
     providers = []
@@ -459,13 +631,14 @@ def parse_notification_providers(account_name=None):
             providers.append(GotifyNotificationProvider(gotify_url, gotify_token))
             break
 
-    # Apprise providers
-    apprise_sections = [s for s in sections_to_check if s.startswith('APPRISE')]
-    for section in apprise_sections:
-        if 'urls' in config[section]:
-            apprise_urls = config[section]['urls'].split(',')
-            providers.append(AppriseNotificationProvider(apprise_urls))
-            break
+    # Apprise providers (only if apprise is available)
+    if apprise_available:
+        apprise_sections = [s for s in sections_to_check if s.startswith('APPRISE')]
+        for section in apprise_sections:
+            if 'urls' in config[section]:
+                apprise_urls = config[section]['urls'].split(',')
+                providers.append(AppriseNotificationProvider(apprise_urls))
+                break
 
     return providers
 
@@ -508,11 +681,23 @@ def multi_account_main():
     # Socket timeout
     socket.setdefaulttimeout(480)
 
-    # Signal handlers for graceful shutdown
+    # Signal handlers for graceful shutdown and config reload
     signal.signal(signal.SIGTERM, shutdown_handler)
     signal.signal(signal.SIGINT, shutdown_handler)
+    signal.signal(signal.SIGHUP, reload_config_handler)  # For dynamic config reload
 
     logging.info(f"Script started. Press Ctrl+C to stop it anytime.")
+
+    # Start Flask app in a separate thread if available and configured
+    if flask_available and app:
+        flask_thread = threading.Thread(target=run_flask_app)
+        flask_thread.daemon = True
+        flask_thread.start()
+    else:
+        if not flask_available:
+            logging.info("Flask is not available. Skipping web interface.")
+        else:
+            logging.info("FlaskHost or FlaskPort not specified. Web interface will not be started.")
 
     global multi_handler
     multi_handler = MultiIMAPHandler(accounts)
@@ -586,6 +771,9 @@ def list_imap_folders():
                 handler.mail.logout()
             except Exception as e:
                 logging.error(f"Failed to list folders for {section}. Reason: {str(e)}")
+
+def run_flask_app():
+    app.run(host=flask_host, port=flask_port)
 
 if __name__ == "__main__":
     if args.print_config:

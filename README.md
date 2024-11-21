@@ -1,130 +1,82 @@
 # NotiMail 📧
 
-**Version 1.1 is here, read the changelog for more information!**
+**Version 2.0 is here!**
 
-Stay connected without the constant drain on your battery. Introducing **NotiMail** - the future of server-side email notifications supporting multiple push providers and multiple email accounts!
+Stay connected without the constant drain on your battery. Introducing **NotiMail** - the future of server-side email notifications supporting multiple push providers, multiple email accounts, a web interface, Prometheus metrics, and dynamic configuration reload!
 
-Mobile devices often use IMAP IDLE, maintaining a persistent connection to ensure real-time email notifications. Such continuous connections rapidly consume battery power. The modern era demanded a smarter, more energy-efficient solution. Meet NotiMail.
+## What's New in 2.0 🚀
+- **Web Interface (Flask)**: Monitor your email accounts and view logs via a web interface.
+- **Prometheus Metrics**: Export detailed email processing metrics for monitoring.
+- **Dynamic Configuration Reload**: Reload the configuration without restarting the script.
+- **Enhanced Logging**: View logs via the web interface and manage them efficiently with rotation.
+- **Backward Compatibility**: Retains all features from version 1.0 and earlier.
 
 ## Features 🌟
-
--   **Monitors Multiple Emails on the Server**: From version 0.9 onwards, NotiMail can monitor multiple email accounts. Ensure you never miss an email regardless of which account it's sent to.
-    
--   **Monitors Multiple Folders per Account**: With version 0.12, you can configure NotiMail to monitor multiple folders for each email account. Whether it's your 'inbox', 'junk', or any other folder, stay informed with NotiMail.
-    
--   **Processes and Notifies**: Once a new email is detected, NotiMail swiftly processes its details.
-    
--   **Leverages Multiple Push Providers for Alerts**: Rather than having your device always on alert, NotiMail sends notifications via multiple push providers, ensuring you're promptly informed.
-    
--   **Expanded Notification Capabilities**: Version 0.13 introduced support for Apprise, allowing for an extensive array of notification services through a single interface.
-    
--   **Log Rotation**: Version 1.0 introduces log rotation, which can be configured based on size or time, ensuring efficient log management.
-    
--   **Thread-Safe Email Processing**: Improved thread safety in email processing, ensuring that multiple email accounts can be processed simultaneously without conflicts.
-    
--   **Enhanced Configuration Validation**: Added configuration validation to ensure all required settings are present before running the script.
-    
--   **Database Integration**: NotiMail uses an SQLite3 database to store and manage processed email UIDs, preventing repeated processing.
-    
--   **Built for Resilience**: With connectivity hiccups in mind, NotiMail ensures you're always the first to know.
-    
--   **Multiple and Different Push Providers Supported**: You can use one or more of the supported push providers - all support authentication, which now includes NTFY, Gotify, Pushover, and a wide range through Apprise.
-    
+- **Monitors Multiple Emails on the Server**: Monitor multiple email accounts and folders with ease.
+- **Processes and Notifies**: Processes new emails and sends notifications containing sender and subject.
+- **Supports Multiple Push Providers**: NTFY, Gotify, Pushover, and Apprise notifications are supported.
+- **Database Integration**: Uses SQLite3 to track processed emails and avoid duplicates.
+- **Metrics and Monitoring**: Export metrics to Prometheus for detailed insights.
+- **Thread-Safe Email Processing**: Handles multiple accounts and folders simultaneously.
+- **Web Interface for Status and Logs**: Securely view account statuses, logs, and configuration via a browser.
+- **Customizable Settings**: Intuitive `config.ini` for configuring multiple accounts and notifications.
 
 ## Benefits 🚀
+- **Extended Battery Life**: No need to maintain persistent IMAP connections on devices.
+- **Real-Time Notifications**: Stay informed instantly with push notifications.
+- **Reduced Data Consumption**: Save bandwidth with server-side processing.
+- **Resilient and Secure**: Built with robust error handling and secure IMAP SSL connections.
 
--   **Extended Battery Life**: Experience a noticeable improvement in your device's battery lifespan.
-    
--   **Swift Notifications**: Using one of the supported push providers, NotiMail provides real-time notifications without delay.
-    
--   **Reduced Data Consumption**: With notifications being the primary data exchange, you can save on unnecessary data usage.
-    
--   **Always in the Loop**: Whether it's a new email or a server glitch, NotiMail and push notifications guarantee you're always informed.
-    
-
-## Implementation Details 🔧
-
--   **Efficient Operation**: Crafted for server-side operations, NotiMail guarantees a smooth, lightweight experience.
-    
--   **Customizable Settings**: Through an intuitive `config.ini`, customize NotiMail to fit your needs. With the new 0.9 version, configure multiple email accounts for monitoring.
-    
--   **Dependable Error Handling**: With robust mechanisms, NotiMail ensures you're notified of any hitches or anomalies.
-    
--   **Safety First**: Employing secure IMAP SSL encryption, your email data is always safe.
-    
-
-----------
-
-Contributions, feedback, and stars ⭐ are always welcome.
-
-## NotiMail Installation Walkthrough
-
-----------
+## Installation Guide 🔧
 
 ### Prerequisites:
-
-Ensure you have Python installed on your machine. NotiMail is written in Python, and you'd need it to run the script. If you haven't already installed Python, download it from the [official website](https://www.python.org/downloads/) or your OS package manager.
-
-----------
+Ensure Python 3.6 or higher is installed. For full feature support, install Flask, Apprise, and Prometheus client.
 
 ### Step-by-Step Installation:
+1. **Clone or Download the Repository**:
+    ```bash
+    git clone https://github.com/draga79/NotiMail.git
+    cd NotiMail
+    ```
+2. **Set Up a Virtual Environment** (Recommended):
+    ```bash
+    python -m venv venv
+    source venv/bin/activate   # macOS/Linux
+    .\venv\Scripts\activate # Windows
+    ```
+3. **Install Required Libraries**:
+    Install the core dependencies:
+    ```bash
+    pip install requests configparser sqlite3 datetime signal logging argparse threading
+    ```
+    For additional features, install these optional libraries:
+    - **Flask** (for the web interface):
+      ```bash
+      pip install flask
+      ```
+    - **Prometheus Client** (for metrics):
+      ```bash
+      pip install prometheus_client
+      ```
+    - **Apprise** (for additional notification services):
+      ```bash
+      pip install apprise
+      ```
 
-**1. Clone or Download NotiMail:**
+4. **Configure NotiMail**:
+    Edit `config.ini` to add email accounts and notification providers.
+5. **Run NotiMail**:
+    ```bash
+    python NotiMail.py
+    ```
 
-If you've hosted `NotiMail` on a platform like GitHub, provide the link and the command. For this example, I'll use a placeholder link:
+## Troubleshooting:
+- **Missing Dependencies**: Ensure all required and optional libraries are installed.
+- **Flask/Prometheus Unavailable**: Ensure the respective libraries are installed and configured.
+- **Configuration Errors**: Check the syntax of `config.ini` or use the `--test-config` option.
 
-`git clone https://github.com/draga79/NotiMail.git`
+## Changelog:
+Moved to `CHANGELOG.md`.
 
-If you're not using version control, ensure users have a link to download the `.zip` or `.tar.gz` of the project and then extract it.
+Enjoy smarter, more efficient email notifications with **NotiMail 2.0**!
 
-**2. Navigate to the NotiMail Directory:**
-
-`cd NotiMail`
-
-**3. Set Up a Virtual Environment (Optional but Recommended):**
-
-A virtual environment ensures that the dependencies for the project don't interfere with your other Python projects or system libraries.
-
-`python -m venv notimail-env`
-
-Activate the virtual environment:
-
--   On macOS and Linux:
-    
-    `source notimail-env/bin/activate`
-    
--   On Windows:
-    
-    `.\notimail-env\Scripts\activate`
-    
-
-**4. Install the Required Libraries:**
-
-Install the necessary Python libraries using `pip`, for example:
-
-`pip install requests configparser sqlite3 datetime signal logging argparse threading apprise`
-
-**5. Configure NotiMail:**
-
-Open the `config.ini` file in a text editor. From version 0.9, you can configure multiple email accounts for monitoring by adding sections like `[EMAIL:account1]`, `[EMAIL:account2]`, etc. If you're upgrading from an earlier version, your old single `[EMAIL]` configuration is still supported. Also, update the configuration for one (or more) of the supported push providers.
-
-**6. Run NotiMail:**
-
-`python NotiMail.py`
-
-----------
-
-### Troubleshooting:
-
-1.  **Python Not Found**: Ensure Python is installed and added to your system's PATH.
-    
-2.  **Dependencies Missing**: If the script raises an error about missing modules, ensure you've activated your virtual environment and installed all necessary libraries.
-    
-
-----------
-
-With that, you should have NotiMail up and running on your system! Enjoy a more efficient email notification experience.
-
-## Changelog
-
-Moved to CHANGELOG.md

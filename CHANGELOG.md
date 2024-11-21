@@ -1,3 +1,76 @@
+### Version 2.0
+
+#### New Features:
+
+-   **Web Interface and API with Flask**:
+    
+    -   Introduced a Flask-based web interface providing endpoints for service status (`/status`), recent logs (`/logs`), and current configuration (`/config`).
+    -   The `/status` endpoint is publicly accessible and returns a simple status (OK or ERROR) indicating if all email accounts are connected and functioning properly.
+    -   When accessed with a valid API key, the `/status` endpoint provides detailed information about each monitored email account.
+    -   The `/logs` and `/config` endpoints require an API key for access and are secured to prevent unauthorized viewing of sensitive information.
+-   **Dynamic Configuration Reload**:
+    
+    -   Implemented the ability to reload the configuration without restarting the service by sending a `SIGHUP` signal to the process.
+    -   The service re-reads the `config.ini` file and updates its settings accordingly, allowing for dynamic adjustments.
+-   **Prometheus Metrics Integration**:
+    
+    -   Integrated Prometheus client to expose metrics for monitoring service performance.
+    -   Metrics include the total number of emails processed, notifications sent, processing time, and the number of errors encountered.
+    -   Metrics are available via an HTTP endpoint, configurable in the `config.ini` file.
+
+#### Enhancements:
+
+-   **Optional Support for Apprise**:
+    
+    -   Made the support for Apprise optional. If Apprise is not installed, the program continues to function using other notification providers (NTFY, Gotify, Pushover) without errors.
+    -   At startup, the program logs whether Apprise is available and adjusts functionality accordingly.
+-   **Configurable Flask and Prometheus Servers**:
+    
+    -   Both the Flask web interface and the Prometheus metrics server can now be enabled or disabled via the configuration file.
+    -   If `FlaskHost` and `FlaskPort` are not specified in `config.ini`, the Flask web interface will not start.
+    -   Similarly, if `PrometheusHost` and `PrometheusPort` are not specified, the Prometheus metrics server will not start.
+    -   This provides flexibility in deploying the service with only the desired features enabled.
+-   **Improved Security in Web Interface**:
+    
+    -   Implemented an API key mechanism for accessing sensitive endpoints (`/config` and `/logs`).
+    -   Sensitive information such as passwords, tokens, and URLs are redacted in the `/config` endpoint to prevent security breaches.
+    -   The `/status` endpoint provides detailed account information only when accessed with a valid API key.
+-   **Enhanced Logging**:
+    
+    -   The program now logs the availability of optional modules (Apprise, Flask, Prometheus) and indicates which features are active based on the configuration.
+    -   Improved logging practices to ensure that sensitive information (passwords, tokens) is never written to the logs.
+
+#### Changes:
+
+-   **Refined `/status` Endpoint Behavior**:
+    
+    -   The `/status` endpoint now returns a simple status (OK or ERROR) when accessed without an API key, suitable for monitoring systems.
+    -   When accessed with a valid API key, it provides detailed status information for each email account.
+-   **Conditional Module Imports**:
+    
+    -   The imports for Apprise, Flask, and Prometheus are now conditional.
+    -   If these libraries are not installed, the program continues to run without errors, and the associated features are automatically disabled.
+    -   This allows for a more customizable setup based on available dependencies.
+-   **Configuration File Updates**:
+    
+    -   Added new configuration options in `config.ini` under the `[GENERAL]` section:
+        -   `FlaskHost` and `FlaskPort` for configuring the Flask web interface.
+        -   `PrometheusHost` and `PrometheusPort` for configuring the Prometheus metrics server.
+        -   `APIKey` for securing access to sensitive API endpoints.
+    -   Updated the parsing logic to handle these new options and activate features accordingly.
+
+#### Upgrade Notes:
+
+-   **Configuration Update Required**:
+    
+    -   Update your `config.ini` file to include the new configuration options if you wish to use the Flask web interface and Prometheus metrics server.
+    -   Add the `APIKey` under the `[GENERAL]` section to secure access to the `/config` and `/logs` endpoints.
+    -   Existing configurations will continue to work, but adding the new options is necessary to enable the latest features.
+-   **Library Dependencies**:
+    
+    -   Install the `Flask` and `prometheus_client` libraries if you intend to use the web interface and Prometheus metrics:
+
+
 ### Version 1.1
 
 #### New Features:
