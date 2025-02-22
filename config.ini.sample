@@ -23,7 +23,7 @@ LogBackupCount = 5
 [EMAIL:account1]
 EmailUser = your@address.com
 EmailPass = YourPassword
-Host = mail.server.com
+Host = mail.example.com
 #Folders = inbox, sent
 
 # Uncomment and configure the following sections for account-specific notification providers
@@ -45,10 +45,10 @@ Host = mail.server.com
 #[APPRISE:account1]
 #urls = pover://user@token, discord://webhook_id/webhook_token
 
-[EMAIL:account2]
-EmailUser = your@address.com
-EmailPass = YourPassword
-Host = mail.server.com
+#[EMAIL:account2]
+#EmailUser = your@address.com
+#EmailPass = YourPassword
+#Host = mail.server.com
 #Folders = inbox, sent
 
 # Uncomment and configure the following sections for account-specific notification providers
@@ -71,19 +71,19 @@ Host = mail.server.com
 #urls = pover://user@token, discord://webhook_id/webhook_token
 
 # Global notification providers
-# If no account-specific notification providers are defined, these will be used
+# If no account-specific notification providers are defined, these will be used - please, set at least one notification provider
 
 [NTFY]
 Url1 = https://ntfy.example.com/global_topic
 Token1 = Optional global token
 
 #[PUSHOVER]
-ApiToken = YOUR_GLOBAL_PUSHOVER_API_TOKEN
-UserKey = YOUR_GLOBAL_PUSHOVER_USER_KEY
+#ApiToken = YOUR_GLOBAL_PUSHOVER_API_TOKEN
+#UserKey = YOUR_GLOBAL_PUSHOVER_USER_KEY
 
-[GOTIFY]
-Url = https://gotify.example.com/message
-Token = your_global_gotify_token
+#[GOTIFY]
+#Url = https://gotify.example.com/message
+#Token = your_global_gotify_token
 
-[APPRISE]
-urls = pover://user@token, discord://webhook_id/webhook_token
+#[APPRISE]
+#urls = pover://user@token, discord://webhook_id/webhook_token
