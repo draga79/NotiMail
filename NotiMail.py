@@ -206,7 +206,8 @@ if flask_available and flask_host and flask_port:
         configured_api_key = config.get('GENERAL', 'APIKey', fallback=None)
         if api_key == configured_api_key and api_key is not None:
             config_dict = {}
-            sensitive_keys = ['emailpass', 'apitoken', 'userkey', 'token', 'urls', 'emailuser']
+            # Sensitive keys that should be redacted (emailpass remains hidden)
+            sensitive_keys = ['emailpass', 'apitoken', 'userkey', 'token', 'urls']
             for section in config.sections():
                 config_dict[section] = {}
                 for key, value in config[section].items():
