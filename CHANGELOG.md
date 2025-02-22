@@ -1,3 +1,11 @@
+### Version 2.0.1
+
+#### Enhancements:
+
+-   **Better TERM and CTRL+C support**.
+-   **Better config.ini.sample**.
+
+
 ### Version 2.0
 
 #### New Features:
