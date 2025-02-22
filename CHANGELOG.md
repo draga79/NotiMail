@@ -68,7 +68,7 @@
     -   Existing configurations will continue to work, but adding the new options is necessary to enable the latest features.
 -   **Library Dependencies**:
     
-    -   Install the `Flask` and `prometheus_client` libraries if you intend to use the web interface and Prometheus metrics:
+    -   Install the `Flask` and `prometheus_client` libraries if you intend to use the web interface and Prometheus metrics.
 
 
 ### Version 1.1
