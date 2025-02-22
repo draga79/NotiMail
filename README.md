@@ -38,36 +38,30 @@ Ensure Python 3.6 or higher is installed. For full feature support, install Flas
     git clone https://github.com/draga79/NotiMail.git
     cd NotiMail
     ```
-2. **Set Up a Virtual Environment** (Recommended):
+2. **Install Required Libraries**:
+    Install the core dependencies. For FreeBSD, it's something like:
     ```bash
-    python -m venv venv
-    source venv/bin/activate   # macOS/Linux
-    .\venv\Scripts\activate # Windows
-    ```
-3. **Install Required Libraries**:
-    Install the core dependencies:
-    ```bash
-    pip install requests configparser sqlite3 datetime signal logging argparse threading
+    pkg install python311 py311-sqlite3 py311-requests py311-configparser py311-datetime py311-argparse
     ```
     For additional features, install these optional libraries:
     - **Flask** (for the web interface):
       ```bash
-      pip install flask
+      pkg install py311-flask
       ```
     - **Prometheus Client** (for metrics):
       ```bash
-      pip install prometheus_client
+      pkg install py311-prometheus-client
       ```
     - **Apprise** (for additional notification services):
       ```bash
-      pip install apprise
+      pip install py311-apprise
       ```
 
-4. **Configure NotiMail**:
+3. **Configure NotiMail**:
     Edit `config.ini` to add email accounts and notification providers.
-5. **Run NotiMail**:
+4. **Run NotiMail**:
     ```bash
-    python NotiMail.py
+    python3.11 NotiMail.py
     ```
 
 ## Troubleshooting:
