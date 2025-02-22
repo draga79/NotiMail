@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 NotiMail
-Version: 2.0
+Version: 2.0.1
 Author: Stefano Marinelli <stefano@dragas.it>
 License: BSD 3-Clause License
 
