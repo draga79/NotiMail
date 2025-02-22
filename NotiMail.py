@@ -5,7 +5,7 @@ Version: 2.0
 Author: Stefano Marinelli <stefano@dragas.it>
 License: BSD 3-Clause License
 
-NotiMail is a script designed to monitor one or more email inbox(es) using the IMAP IDLE feature
+NotiMail is a script designed to monitor one or more email inboxes using the IMAP IDLE feature
 and send notifications via HTTP POST requests when a new email arrives. This version includes
 additional features to store processed email UIDs in a SQLite3 database and ensure they are not
 processed repeatedly.
@@ -25,41 +25,13 @@ Python Dependencies:
 - sqlite3: For database operations.
 - datetime: For date and time operations.
 - signal, sys: For handling script shutdown and signals.
-- threading: to deal with multiple inboxes
+- threading: To deal with multiple inboxes.
 - BytesParser from email.parser: For parsing raw email data.
-- apprise: for apprise notifications
+- apprise: For Apprise notifications
 
 Configuration:
 The script reads configuration data from a file named config.ini. Ensure it is properly
 configured before running the script.
-
-BSD 3-Clause License:
-
-Copyright (c) 2023-2024, Stefano Marinelli
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without modification,
-are permitted provided that the following conditions are met:
-
-1. Redistributions of source code must retain the above copyright notice,
-   this list of conditions and the following disclaimer.
-2. Redistributions in binary form must reproduce the above copyright notice,
-   this list of conditions and the following disclaimer in the documentation
-   and/or other materials provided with the distribution.
-3. Neither the name of the copyright holder nor the names of its contributors
-   may be used to endorse or promote products derived from this software without
-   specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
-IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
-INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
-BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA,
-OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
-WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
-OF SUCH DAMAGE.
 """
 
 #!/usr/bin/env python3
@@ -105,7 +77,7 @@ try:
 except ImportError:
     prometheus_available = False
 
-# Argument parsing to get the config file
+# Argument parsing to get the config file path
 parser = argparse.ArgumentParser(description='NotiMail Notification Service.')
 parser.add_argument('-c', '--config', type=str, default='config.ini', help='Path to the configuration file.')
 parser.add_argument('--print-config', action='store_true', help='Print the configuration options from config.ini')
@@ -113,7 +85,7 @@ parser.add_argument('--test-config', action='store_true', help='Test the configu
 parser.add_argument('--list-folders', action='store_true', help='List all IMAP folders of the configured mailboxes')
 args = parser.parse_args()
 
-# Configuration reading
+# Read configuration
 config = configparser.ConfigParser()
 config.read(args.config)
 
@@ -125,14 +97,13 @@ def validate_config(config):
 
 validate_config(config)
 
-# Logging setup using config (or default if not set)
+# Logging setup using configuration (or default if not set)
 log_file_location = config.get('GENERAL', 'LogFileLocation', fallback='notimail.log')
 log_rotation_type = config.get('GENERAL', 'LogRotationType', fallback='size')
 log_rotation_size = config.getint('GENERAL', 'LogRotationSize', fallback=10485760)  # 10MB
 log_rotation_interval = config.getint('GENERAL', 'LogRotationInterval', fallback=1)  # 1 day
 log_backup_count = config.getint('GENERAL', 'LogBackupCount', fallback=5)
 
-# Logger configuration
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
@@ -147,7 +118,6 @@ formatter = logging.Formatter('%(asctime)s - %(threadName)s - %(levelname)s - %(
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
-# Logging module availability
 logging.info("Module availability:")
 logging.info(f" - Apprise available: {apprise_available}")
 logging.info(f" - Flask available: {flask_available}")
@@ -161,7 +131,6 @@ if prometheus_available and prometheus_host and prometheus_port:
     try:
         start_http_server(prometheus_port, addr=prometheus_host)
         logging.info(f"Prometheus metrics server started on {prometheus_host}:{prometheus_port}")
-        # Define Prometheus metrics
         EMAILS_PROCESSED = Counter('emails_processed_total', 'Total number of emails processed')
         NOTIFICATIONS_SENT = Counter('notifications_sent_total', 'Total number of notifications sent')
         PROCESSING_TIME = Histogram('email_processing_seconds', 'Time spent processing emails')
@@ -174,7 +143,6 @@ else:
         logging.info("Prometheus client library is not available. Metrics will not be exposed.")
     else:
         logging.info("PrometheusHost or PrometheusPort not specified. Metrics will not be exposed.")
-    # Dummy metrics when Prometheus is not available
     class DummyMetric:
         def inc(self, amount=1):
             pass
@@ -185,11 +153,10 @@ else:
                 def __exit__(self, exc_type, exc_val, exc_tb):
                     pass
             return DummyTimer()
-
     EMAILS_PROCESSED = NOTIFICATIONS_SENT = ERRORS = DummyMetric()
     PROCESSING_TIME = DummyMetric()
 
-# Flask app for the web interface
+# Flask web interface setup
 flask_host = config.get('GENERAL', 'FlaskHost', fallback=None)
 flask_port = config.getint('GENERAL', 'FlaskPort', fallback=None)
 
@@ -200,12 +167,8 @@ if flask_available and flask_host and flask_port:
     def status():
         api_key = request.args.get('api_key')
         configured_api_key = config.get('GENERAL', 'APIKey', fallback=None)
-
         if api_key == configured_api_key and api_key is not None:
-            # Return detailed status
-            status_info = {
-                'accounts': []
-            }
+            status_info = {'accounts': []}
             for handler in multi_handler.handlers:
                 account_status = {
                     'email_user': handler.email_user,
@@ -216,7 +179,6 @@ if flask_available and flask_host and flask_port:
                 status_info['accounts'].append(account_status)
             return jsonify(status_info)
         else:
-            # Return simple status
             all_connected = all(handler.mail is not None for handler in multi_handler.handlers)
             if all_connected:
                 return jsonify({'status': 'OK'}), 200
@@ -227,13 +189,10 @@ if flask_available and flask_host and flask_port:
     def logs():
         api_key = request.args.get('api_key')
         configured_api_key = config.get('GENERAL', 'APIKey', fallback=None)
-
         if api_key == configured_api_key and api_key is not None:
-            log_file_location = config.get('GENERAL', 'LogFileLocation', fallback='notimail.log')
             try:
                 with open(log_file_location, 'r') as f:
                     logs = f.readlines()
-                    # Return the last 100 lines
                     last_n_lines = logs[-100:]
                 return ''.join(last_n_lines), 200, {'Content-Type': 'text/plain; charset=utf-8'}
             except Exception as e:
@@ -245,7 +204,6 @@ if flask_available and flask_host and flask_port:
     def get_config():
         api_key = request.args.get('api_key')
         configured_api_key = config.get('GENERAL', 'APIKey', fallback=None)
-
         if api_key == configured_api_key and api_key is not None:
             config_dict = {}
             sensitive_keys = ['emailpass', 'apitoken', 'userkey', 'token', 'urls', 'emailuser']
@@ -293,13 +251,10 @@ class DatabaseHandler:
         self.connection.commit()
 
     def update_schema_if_needed(self):
-        # Check if the email_account column exists
         self.cursor.execute("PRAGMA table_info(processed_emails)")
         columns = [column[1] for column in self.cursor.fetchall()]
         if 'email_account' not in columns:
-            # Add the email_account column and set its default value to 'unknown'
             self.cursor.execute("ALTER TABLE processed_emails ADD COLUMN email_account TEXT DEFAULT 'unknown'")
-            # Update the primary key to be a composite key of email_account and uid
             self.cursor.execute("CREATE UNIQUE INDEX idx_email_account_uid ON processed_emails(email_account, uid)")
             self.connection.commit()
 
@@ -377,9 +332,8 @@ if apprise_available:
             mail_subject = mail_subject if mail_subject is not None else "No Subject"
             mail_from = mail_from if mail_from is not None else "Unknown Sender"
             message = f"{mail_from}"
-
             if not self.apprise.notify(title=mail_subject, body=message):
-                logging.error(f"Failed to send notification via Apprise.")
+                logging.error("Failed to send notification via Apprise.")
 else:
     pass  # Apprise is not available; skip defining the provider
 
@@ -397,7 +351,6 @@ class NTFYNotificationProvider(NotificationProvider):
             headers = {"Title": encoded_subject}
             if token:
                 headers["Authorization"] = f"Bearer {token}"
-
             try:
                 response = requests.post(ntfy_url, data=encoded_from, headers=headers)
                 if response.status_code == 200:
@@ -431,7 +384,7 @@ class PushoverNotificationProvider(NotificationProvider):
         try:
             response = requests.post(self.pushover_url, data=data)
             if response.status_code == 200:
-                logging.info(f"Notification sent successfully via Pushover")
+                logging.info("Notification sent successfully via Pushover")
             else:
                 logging.error(f"Failed to send notification via Pushover. Status Code: {response.status_code}")
                 ERRORS.inc()
@@ -449,17 +402,15 @@ class GotifyNotificationProvider(NotificationProvider):
         mail_from = mail_from if mail_from is not None else "Unknown Sender"
         message = f"From: {mail_from}\nSubject: {mail_subject}"
         url_with_token = f"{self.gotify_url}?token={self.gotify_token}"
-
         payload = {
             "title": mail_subject,
             "message": message,
             "priority": 5
         }
-
         try:
             response = requests.post(url_with_token, json=payload)
             if response.status_code == 200:
-                logging.info(f"Notification sent successfully via Gotify")
+                logging.info("Notification sent successfully via Gotify")
             else:
                 logging.error(f"Failed to send notification via Gotify. Status Code: {response.status_code}")
                 ERRORS.inc()
@@ -545,7 +496,6 @@ class MultiIMAPHandler:
             thread.daemon = True
             threads.append(thread)
             thread.start()
-
         for thread in threads:
             thread.join()
 
@@ -569,13 +519,13 @@ class MultiIMAPHandler:
                 break
 
 def shutdown_handler(signum, frame):
-    logging.info(f"Shutdown signal received. Cleaning up...")
+    logging.info("Shutdown signal received. Cleaning up...")
     try:
         for handler in multi_handler.handlers:
             handler.mail.logout()
     except:
         pass
-    logging.info(f"Cleanup complete. Exiting.")
+    logging.info("Cleanup complete. Exiting.")
     sys.exit(0)
 
 def reload_config_handler(signum, frame):
@@ -590,7 +540,6 @@ def reload_configuration():
 
 def parse_notification_providers(account_name=None):
     providers = []
-
     # Determine which sections to read based on account_name
     if account_name:
         # Only include sections specific to this account
@@ -620,7 +569,7 @@ def parse_notification_providers(account_name=None):
             api_token = config[section]['ApiToken']
             user_key = config[section]['UserKey']
             providers.append(PushoverNotificationProvider(api_token, user_key))
-            break  # Assuming only one Pushover provider per account or globally
+            break
 
     # Gotify provider
     gotify_sections = [s for s in sections_to_check if s.startswith('GOTIFY')]
@@ -644,7 +593,6 @@ def parse_notification_providers(account_name=None):
 
 def multi_account_main():
     accounts = []
-
     # Parse global notification providers
     global_providers = parse_notification_providers()
     if global_providers:
@@ -664,21 +612,21 @@ def multi_account_main():
                     'Folder': folder,
                     'Notifier': None
                 }
-                # Parse notification providers for this account
+                # Parse account-specific notification providers
                 account_providers = parse_notification_providers(account_name)
                 if account_providers:
                     account['Notifier'] = Notifier(account_providers)
                 else:
-                    # Use global notifier
+                    # Use global notifier if available
                     if global_notifier:
                         account['Notifier'] = global_notifier
                     else:
-                        # Neither account-specific nor global notifier is available
                         logging.error(f"No notification providers specified for account {section} and no global notification providers are available.")
-                        raise ValueError(f"No notification providers specified for account {section} and no global notification providers are available.")
+                        print(f"Error: No notification providers specified for account {section} and no global notification providers are available.")
+                        sys.exit(1)
                 accounts.append(account)
 
-    # Socket timeout
+    # Set socket timeout
     socket.setdefaulttimeout(480)
 
     # Signal handlers for graceful shutdown and config reload
@@ -686,7 +634,7 @@ def multi_account_main():
     signal.signal(signal.SIGINT, shutdown_handler)
     signal.signal(signal.SIGHUP, reload_config_handler)  # For dynamic config reload
 
-    logging.info(f"Script started. Press Ctrl+C to stop it anytime.")
+    logging.info("Script started. Press Ctrl+C to stop it at any time.")
 
     # Start Flask app in a separate thread if available and configured
     if flask_available and app:
@@ -703,7 +651,7 @@ def multi_account_main():
     multi_handler = MultiIMAPHandler(accounts)
     multi_handler.run()
 
-    logging.info(f"Logging out and closing the connection...")
+    logging.info("Logging out and closing connections...")
     try:
         for handler in multi_handler.handlers:
             handler.mail.logout()
@@ -718,7 +666,6 @@ def print_config():
         print()
 
 def test_config():
-    # Test global notification providers
     logging.info("Testing global notification providers...")
     global_providers = parse_notification_providers()
     if global_providers:
@@ -731,7 +678,6 @@ def test_config():
     else:
         logging.info("No global notification providers configured.")
 
-    # Test per-account configurations
     for section in config.sections():
         if section.startswith("EMAIL:"):
             account_name = section.split(":", 1)[1]
@@ -743,8 +689,6 @@ def test_config():
                 handler.mail.logout()
             except Exception as e:
                 logging.error(f"Connection failed for {section}. Reason: {str(e)}")
-
-            # Test account-specific notification providers
             account_providers = parse_notification_providers(account_name)
             if account_providers:
                 account_notifier = Notifier(account_providers)
@@ -755,8 +699,7 @@ def test_config():
                     logging.error(f"Failed to send test notification via account-specific providers for {section}. Reason: {str(e)}")
             else:
                 logging.info(f"No account-specific notification providers configured for {section}.")
-
-    logging.info("Testing done!")
+    logging.info("Testing completed!")
 
 def list_imap_folders():
     for section in config.sections():
@@ -775,6 +718,44 @@ def list_imap_folders():
 def run_flask_app():
     app.run(host=flask_host, port=flask_port)
 
+def initial_checks():
+    logging.info("Performing initial tests...")
+    # Test log file write
+    try:
+        with open(log_file_location, 'a') as f:
+            test_message = f"{datetime.datetime.now()} - Test log write from NotiMail startup.\n"
+            f.write(test_message)
+    except Exception as e:
+        print("Error: unable to write to log file:", e)
+        logging.error("Error: unable to write to log file: " + str(e))
+        sys.exit(1)
+    
+    # Test database operations
+    try:
+        with DatabaseHandler() as db:
+            db.add_email("test", "test", 0)
+            db.cursor.execute("DELETE FROM processed_emails WHERE email_account=? AND uid=?", ("test", "test"))
+            db.connection.commit()
+    except Exception as e:
+        print("Error: unable to write to database:", e)
+        logging.error("Error: unable to write to database: " + str(e))
+        sys.exit(1)
+    
+    # Test sending a test notification via global providers
+    try:
+        global_providers = parse_notification_providers()
+        if not global_providers:
+            print("Error: no global notification providers configured for the test.")
+            logging.error("Error: no global notification providers configured for the test.")
+            sys.exit(1)
+        test_notifier = Notifier(global_providers)
+        test_notifier.send_notification("Test Notification", "Test notification from NotiMail startup")
+    except Exception as e:
+        print("Error: unable to send test notification:", e)
+        logging.error("Error: unable to send test notification: " + str(e))
+        sys.exit(1)
+    logging.info("Initial tests completed successfully.")
+
 if __name__ == "__main__":
     if args.print_config:
         print_config()
@@ -783,5 +764,5 @@ if __name__ == "__main__":
     elif args.list_folders:
         list_imap_folders()
     else:
+        initial_checks()
         multi_account_main()
-
