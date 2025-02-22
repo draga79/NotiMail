@@ -13,12 +13,12 @@ LogBackupCount = 5
 #APIKey = YouApiKeyHERE!
 
 # Prometheus configuration won't be enabled if not specified or if the required libraries are not present.
-PrometheusHost = 0.0.0.0
-PrometheusPort = 8000
+#PrometheusHost = 0.0.0.0
+#PrometheusPort = 8000
 
 # API Flask Interface won't be enabled if not specified or if the required libraries are not present.
-FlaskHost = 0.0.0.0
-FlaskPort = 8080
+#FlaskHost = 0.0.0.0
+#FlaskPort = 8080
 
 [EMAIL:account1]
 EmailUser = your@address.com
