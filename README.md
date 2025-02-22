@@ -75,7 +75,7 @@ Stay connected without constantly draining your battery. Introducing **NotiMail*
 
 - **Web Interface**:  
   If Flask is installed and configured in your `config.ini` (with `FlaskHost` and `FlaskPort`), the web interface will be available at:
-  - `/status` – Get a detailed status of monitored email accounts (requires API key).
+  - `/status` – Get a detailed status of monitored email accounts (requires API key). Without an API key, the /status endpoint returns a simple status (OK or ERROR) indicating if all email accounts are connected and functioning properly.
   - `/logs` – View the last 100 lines of logs (requires API key).
   - `/config` – Display the current configuration with sensitive keys redacted (requires API key).
 
