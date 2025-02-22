@@ -74,10 +74,10 @@ Host = mail.server.com
 # If no account-specific notification providers are defined, these will be used
 
 [NTFY]
-Url1 = https://ntfy.sh/global_topic
+Url1 = https://ntfy.example.com/global_topic
 Token1 = Optional global token
 
-[PUSHOVER]
+#[PUSHOVER]
 ApiToken = YOUR_GLOBAL_PUSHOVER_API_TOKEN
 UserKey = YOUR_GLOBAL_PUSHOVER_USER_KEY
 
