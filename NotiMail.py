@@ -26,6 +26,7 @@ Python Dependencies:
 - datetime: For date and time operations.
 - signal, sys: For handling script shutdown and signals.
 - threading: To deal with multiple inboxes.
+- os, select: Per gestire la socket pair e interrompere le chiamate bloccanti.
 - BytesParser from email.parser: For parsing raw email data.
 - apprise: For Apprise notifications
 
@@ -50,10 +51,16 @@ import logging
 import argparse
 import threading
 import os
+import select
 from email import policy
 from email.parser import BytesParser
 from threading import Lock
 from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
+
+# Creiamo una socket pair globale per gestire lo shutdown
+shutdown_sock_r, shutdown_sock_w = socket.socketpair()
+shutdown_sock_r.setblocking(0)
+shutdown_sock_w.setblocking(0)
 
 # Conditional import of Apprise
 try:
@@ -453,29 +460,24 @@ class IMAPHandler:
         try:
             tag = self.mail._new_tag().decode()
             self.mail.send(f'{tag} IDLE\r\n'.encode('utf-8'))
-            self.mail.readline()
             while True:
-                line = self.mail.readline()
-                if line:
-                    if b'BYE' in line:
-                        raise ConnectionAbortedError("Received BYE from server. Trying to reconnect...")
-                    if b'EXISTS' in line:
-                        break
+                # Attendiamo sul socket IMAP e sulla socket pair per shutdown
+                rlist, _, _ = select.select([self.mail.sock, shutdown_sock_r], [], [])
+                if shutdown_sock_r in rlist:
+                    # Riceviamo il dato di "wake-up" e usciamo dal loop
+                    shutdown_sock_r.recv(1024)
+                    break
+                if self.mail.sock in rlist:
+                    line = self.mail.readline()
+                    if line:
+                        if b'BYE' in line:
+                            raise ConnectionAbortedError("Received BYE from server. Trying to reconnect...")
+                        if b'EXISTS' in line:
+                            break
             self.mail.send(b'DONE\r\n')
             self.mail.readline()
-        except imaplib.IMAP4.abort as e:
-            logging.error(f"[{self.email_user}] Connection closed by server: {str(e)}")
-            if self.notifier:
-                self.notifier.send_notification("Script Error", f"Connection closed by server: {str(e)}")
-            raise ConnectionAbortedError("Connection lost. Trying to reconnect...")
-        except socket.timeout:
-            logging.info(f"[{self.email_user}] Socket timeout during IDLE, re-establishing connection...")
-            raise ConnectionAbortedError("Socket timeout. Trying to reconnect...")
         except Exception as e:
-            logging.error(f"[{self.email_user}] An error occurred: {str(e)}")
-            if self.notifier:
-                self.notifier.send_notification("Script Error", f"An error occurred: {str(e)}")
-            raise
+            logging.error(f"[{self.email_user}] Error in idle: {str(e)}")
         finally:
             logging.info(f"[{self.email_user}] IDLE mode stopped.")
             self.last_check = datetime.datetime.now()
@@ -522,10 +524,18 @@ class MultiIMAPHandler:
 def shutdown_handler(signum, frame):
     logging.info("Shutdown signal received. Cleaning up...")
     try:
+        # Inviamo un byte attraverso la socket pair per sbloccare la select
+        shutdown_sock_w.send(b'\x00')
         for handler in multi_handler.handlers:
-            handler.mail.logout()
-    except:
-        pass
+            if handler.mail is not None:
+                # Forziamo la chiusura del socket IMAP per interrompere eventuali operazioni bloccanti
+                try:
+                    handler.mail.sock.shutdown(socket.SHUT_RDWR)
+                except Exception:
+                    pass
+                handler.mail.logout()
+    except Exception as e:
+        logging.error(f"Error during logout: {str(e)}")
     logging.info("Cleanup complete. Exiting.")
     sys.exit(0)
 
