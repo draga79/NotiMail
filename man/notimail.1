@@ -1,5 +1,5 @@
 .\" Man page for NotiMail
-.TH MAN 1 "2 July 2024"
+.TH NOTIMAIL 1 "22 February 2025"
 .SH NAME
 NotiMail \- Monitor email inbox(es) and send notifications upon new email arrivals using various providers.
 .SH SYNOPSIS
@@ -9,41 +9,43 @@ NotiMail \- Monitor email inbox(es) and send notifications upon new email arriva
 [\fB--test-config\fR]
 [\fB--list-folders\fR]
 .SH DESCRIPTION
-NotiMail is a script designed to monitor one or more email inboxes using the IMAP IDLE feature. It sends notifications when a new email arrives. The script can connect to multiple email servers and send notifications to different platforms, including NTFY, Pushover, Gotify, and Apprise.
+NotiMail is a script designed to monitor one or more email inboxes using the IMAP IDLE feature.
+It automatically processes new emails and sends notifications (including sender and subject)
+to various push notification providers. It supports multiple email accounts and folders,
+ensuring that emails are not processed repeatedly by using an SQLite database.
 .P
-Key features:
+In addition, NotiMail now includes:
 .RS
 .IP "*"
-Monitors one or more email inboxes using IMAP IDLE.
+A web interface (via Flask) to display status, logs, and configuration.
 .IP "*"
-Supports monitoring of multiple folders per email account.
+Prometheus metrics export for detailed monitoring (emails processed, notifications sent, processing time, errors).
 .IP "*"
-Sends notifications containing the sender and subject of new emails.
+Dynamic configuration reload via SIGHUP (without restarting the service).
 .IP "*"
-Maintains a SQLite database to ensure that emails are not processed repeatedly.
-.IP "*"
-Supports multiple notification providers: NTFY, Pushover, Gotify, and Apprise.
-.IP "*"
-Provides command-line functionalities to validate, test, and list IMAP folders.
+Robust startup checks with errors printed both to stdout and to the log.
 .RE
+
 .SH OPTIONS
 .TP
 \fB-c\fR, \fB--config\fR \fICONFIG\fR
 Specify the path to the configuration file. Defaults to \fIconfig.ini\fR.
 .TP
 \fB--print-config\fR
-Print the configurations set in the \fIconfig.ini\fR file.
+Print the current configuration from the \fIconfig.ini\fR file.
 .TP
 \fB--test-config\fR
-Test if the configurations set in the \fIconfig.ini\fR file are working properly.
+Test the configuration settings, including connectivity and notification providers.
 .TP
 \fB--list-folders\fR
 List all the IMAP folders of the configured mailboxes.
 .SH CONFIGURATION
-Configuration data is read from a file named \fIconfig.ini\fR. Ensure it's correctly set up before running the script. The configuration file has multiple sections:
+Configuration is read from a file named \fIconfig.ini\fR. Ensure it is correctly set up before running NotiMail.
+The configuration file consists of multiple sections:
 .P
 .RS
 .IP "[GENERAL]:"
+Specifies general settings:
 .IP LogFileLocation:
 Path to the log file.
 .IP DataBaseLocation:
@@ -51,46 +53,57 @@ Path to the SQLite3 database for storing processed emails.
 .IP LogRotationType:
 Type of log rotation (\fIsize\fR or \fItime\fR).
 .IP LogRotationSize:
-Size threshold for log rotation (only used if \fILogRotationType\fR is \fIsize\fR).
+Size threshold for log rotation (used if \fILogRotationType\fR is \fIsize\fR).
 .IP LogRotationInterval:
-Time interval for log rotation in days (only used if \fILogRotationType\fR is \fItime\fR).
+Time interval (in days) for log rotation (used if \fILogRotationType\fR is \fItime\fR).
 .IP LogBackupCount:
 Number of backup log files to retain.
+.IP PrometheusHost:
+Hostname for the Prometheus metrics server.
+.IP PrometheusPort:
+Port for the Prometheus metrics server.
+.IP FlaskHost:
+Hostname for the Flask web interface.
+.IP FlaskPort:
+Port for the Flask web interface.
+.IP APIKey:
+API key required to access secure web endpoints.
 .IP "[EMAIL:accountX]:"
-Defines an email account. Replace \fIaccountX\fR with a unique identifier for each email account.
+Defines an email account (replace \fIaccountX\fR with a unique identifier).
 .IP EmailUser:
-The email address.
+Email address for the account.
 .IP EmailPass:
-The password for the email address.
+Password for the email account.
 .IP Host:
-The email server.
+IMAP server hostname.
 .IP Folders:
-A comma-separated list of folders to monitor.
+Comma-separated list of folders to monitor.
 .IP "[NTFY]:"
-Configuration for the NTFY notification provider.
+Settings for the NTFY notification provider.
 .IP UrlX:
-The NTFY URL for sending notifications. Replace \fIX\fR with a unique number.
+NTFY URL for sending notifications (replace \fIX\fR with a unique number).
 .IP TokenX:
-(Optional) Token for sending notifications to protected topics.
+(Optional) Token for protected topics.
 .IP "[PUSHOVER]:"
-Configuration for the Pushover notification provider.
+Settings for the Pushover provider.
 .IP ApiToken:
-Your Pushover API token.
+Pushover API token.
 .IP UserKey:
-Your Pushover user key.
+Pushover user key.
 .IP "[GOTIFY]:"
-Configuration for the Gotify notification provider.
+Settings for the Gotify provider.
 .IP Url:
-The Gotify URL for sending messages.
+Gotify URL for sending messages.
 .IP Token:
-Your Gotify token.
+Gotify token.
 .IP "[APPRISE]:"
-Configuration for the Apprise notification provider.
+Settings for the Apprise provider.
 .IP urls:
-Comma-separated list of Apprise service URLs for sending notifications.
+Comma-separated list of Apprise service URLs.
 .RE
+
 .SH DEPENDENCIES
-Python libraries:
+NotiMail requires the following Python libraries:
 .RS
 .IP "*"
 imaplib
@@ -115,22 +128,68 @@ argparse
 .IP "*"
 threading
 .IP "*"
-BytesParser from email.parser
+BytesParser (from email.parser)
 .IP "*"
-apprise
+apprise (optional, for additional notifications)
+.IP "*"
+Flask (optional, for the web interface)
+.IP "*"
+Prometheus Client (optional, for metrics export)
 .RE
+
+.SH USAGE
+NotiMail runs from the command line and performs initial startup checks including:
+.RS
+.IP "*"
+Testing log file write access.
+.IP "*"
+Testing database operations.
+.IP "*"
+Sending a test notification via global providers.
+.RE
+If any startup check fails, an error message is printed to stdout and logged, and the program exits.
+.P
+When enabled, the web interface provides:
+.RS
+.IP "/status":
+Displays the status of monitored email accounts (requires API key).
+.IP "/logs":
+Shows the last 100 lines of the log file (requires API key).
+.IP "/config":
+Returns the current configuration with sensitive values redacted (requires API key).
+.RE
+.P
+Prometheus metrics, if configured, export statistics such as:
+.RS
+.IP "emails_processed_total":
+Total number of emails processed.
+.IP "notifications_sent_total":
+Total number of notifications sent.
+.IP "email_processing_seconds":
+Time spent processing emails.
+.IP "errors_total":
+Total number of errors encountered.
+.RE
+
+.SH SIGNALS
+NotiMail supports dynamic configuration reload. Sending a SIGHUP signal to the running process reloads \fIconfig.ini\fR without restarting the service:
+.P
+    kill -SIGHUP <process_id>
+.P
+Additionally, standard signals (SIGTERM, SIGINT) are handled for graceful shutdown.
+
 .SH EXAMPLES
-1. Running NotiMail with the default configuration file:
+1. Running NotiMail with the default configuration:
 .RS
 .IP ""
 notimail
 .RE
-2. Specifying a custom configuration file:
+2. Running NotiMail with a custom configuration file:
 .RS
 .IP ""
-notimail \-c /path/to/custom_config.ini
+notimail -c /path/to/custom_config.ini
 .RE
-3. Checking the current configuration:
+3. Printing the current configuration:
 .RS
 .IP ""
 notimail --print-config
@@ -140,14 +199,15 @@ notimail --print-config
 .IP ""
 notimail --test-config
 .RE
-5. Listing IMAP folders of the configured mailboxes:
+5. Listing the IMAP folders for the configured mailboxes:
 .RS
 .IP ""
 notimail --list-folders
 .RE
+
 .SH AUTHOR
 Stefano Marinelli <stefano@dragas.it>
 .SH LICENSE
 BSD 3-Clause License. See the source distribution for details.
 .SH SEE ALSO
-IMAP IDLE, SQLite3, NTFY, Pushover, Gotify, Apprise.
+IMAP IDLE(3), SQLite3(3), NTFY, Pushover, Gotify, Apprise, Flask, Prometheus Client.
